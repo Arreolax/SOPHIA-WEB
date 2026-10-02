@@ -1,30 +1,134 @@
-datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// Modelos de Prueba
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String
-  role      String   @default("EMPLOYEE")
-  tickets   Ticket[]
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-model Ticket {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String
-  status      String   @default("OPEN")
-  priority    String   @default("LOW")
-  createdAt   DateTime @default(now())
+// Tabla de Usuarios 
+model User {
+  id_user             String              @id @default(uuid())
+  name                String              @db.VarChar(100)
+  email               String              @unique @db.VarChar(150)
+  role                String              @db.VarChar(50)
   
-  authorId    Int
-  author      User     @relation(fields: [authorId], references: [id])
+  tickets_created     Ticket[]            @relation("CreatedBy")
+  tickets_assigned    Ticket[]            @relation("AssignedTo")
+  priority_changes    PriorityHistory[]
+  assignments_made    AssignmentHistory[] @relation("AssignedBy")
+  assignments_received AssignmentHistory[] @relation("AssignedToHistory")
+  status_changes      StatusHistory[]
+  comments            Comment[]
+  reopens             TicketReopenLog[]
+}
+
+// Tabla de Categorías
+model Category {
+  id_category String   @id @default(uuid())
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  active      Boolean  @default(true)
+  tickets     Ticket[]
+}
+
+// Entidad Central: Tickets
+model Ticket {
+  id_ticket   String   @id @default(uuid())
+  title       String   @db.VarChar(150)
+  description String   @db.Text
+  type        String   @db.VarChar(50)
+  subcategory String?  @db.VarChar(100)
+  impact      String   @db.VarChar(20)
+  urgency     String   @db.VarChar(20)
+  status      String   @db.VarChar(20)
+  priority    String   @db.VarChar(20)
+  diagnosis   String?  @db.Text
+  resolution  String?  @db.Text
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  category_id String
+  category    Category @relation(fields: [category_id], references: [id_category])
+  
+  created_by  String
+  creator     User     @relation("CreatedBy", fields: [created_by], references: [id_user])
+
+  assigned_to String?
+  assignee    User?    @relation("AssignedTo", fields: [assigned_to], references: [id_user])
+
+  attachments        Attachment[]
+  priority_history   PriorityHistory[]
+  assignment_history AssignmentHistory[]
+  status_history     StatusHistory[]
+  comments           Comment[]
+  reopen_logs        TicketReopenLog[]
+}
+
+// Tabla de Evidencias / Archivos Adjuntos
+model Attachment {
+  id_attachment String   @id @default(uuid())
+  ticket_id     String
+  ticket        Ticket   @relation(fields: [ticket_id], references: [id_ticket])
+  file_name     String   @db.VarChar(255)
+  file_type     String   @db.VarChar(50)
+  file_size     Int
+  file_path     String   @db.VarChar(500)
+  uploaded_at   DateTime @default(now())
+}
+
+// Tablas de Historial y Trazabilidad
+model PriorityHistory {
+  id_history   String   @id @default(uuid())
+  ticket_id    String
+  ticket       Ticket   @relation(fields: [ticket_id], references: [id_ticket])
+  old_priority String   @db.VarChar(20)
+  new_priority String   @db.VarChar(20)
+  changed_by   String
+  user         User     @relation(fields: [changed_by], references: [id_user])
+  reason       String?  @db.Text
+  changed_at   DateTime @default(now())
+}
+
+model AssignmentHistory {
+  id_assignment String   @id @default(uuid())
+  ticket_id     String
+  ticket        Ticket   @relation(fields: [ticket_id], references: [id_ticket])
+  assigned_to   String
+  assignee      User     @relation("AssignedToHistory", fields: [assigned_to], references: [id_user])
+  assigned_by   String
+  assigner      User     @relation("AssignedBy", fields: [assigned_by], references: [id_user])
+  assigned_at   DateTime @default(now())
+}
+
+model StatusHistory {
+  id_status_history String   @id @default(uuid())
+  ticket_id         String
+  ticket            Ticket   @relation(fields: [ticket_id], references: [id_ticket])
+  old_status        String?  @db.VarChar(30)
+  new_status        String   @db.VarChar(30)
+  changed_by        String
+  user              User     @relation(fields: [changed_by], references: [id_user])
+  changed_at        DateTime @default(now())
+}
+
+model Comment {
+  id_comment String   @id @default(uuid())
+  ticket_id  String
+  ticket     Ticket   @relation(fields: [ticket_id], references: [id_ticket])
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id_user])
+  content    String   @db.Text
+  created_at DateTime @default(now())
+}
+
+model TicketReopenLog {
+  id_reopen   String   @id @default(uuid())
+  ticket_id   String
+  ticket      Ticket   @relation(fields: [ticket_id], references: [id_ticket])
+  reopened_by String
+  user        User     @relation(fields: [reopened_by], references: [id_user])
+  reason      String   @db.Text
+  reopened_at DateTime @default(now())
 }
