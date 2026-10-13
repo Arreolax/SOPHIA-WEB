@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
 
-## Getting Started
+  <h1>SOPHIA WEB</h1>
 
-First, run the development server:
+  <hr>
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+  <img src="https://img.shields.io/badge/En%20Desarrollo-%20?style=flat&label=Estado&labelColor=purple&color=red">
+  <img src="https://img.shields.io/badge/Next.js-Framework-green?style=flat&labelColor=purple&logo=next.js&logoColor=white">
+  <img src="https://img.shields.io/badge/PostgreSQL-DataBase-green?style=flat&labelColor=purple&logo=postgresql&logoColor=white">
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+</div>
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+<hr>
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+<h2>👨‍💻 Desarrolladores</h2>
+<ul>
+  <li>
+    <a href="https://github.com/GuadalupeVargas07" target="_blank">GuadalupeDuh</a> - Analista, Desarrolladora Frontend y Testing
+    <img src="https://img.shields.io/badge/Lider%20del%20Proyecto-%20?style=flat&color=black">
+  </li>
+  <li>
+    <a href="https://github.com/Arreolax" target="_blank">Alejandro Arreola</a> - Desarrollador Backend, Arquitecturas e Integraciones <img src="https://img.shields.io/badge/Desarrollador%20Backend-%20?style=flat&color=purple">
+  </li>
+  <li>
+    <a href="https://github.com/FerMich29" target="_blank">Fernanda Aguayo</a> - Diseñadora, Desarrolladora Frontend, y Testing <img src="https://img.shields.io/badge/Diseñadora%20UI/UX-%20?style=flat&color=orange">
+  </li>
+  <li>
+    <a href="https://github.com/Jaysons-s" target="_blank">JaysonS_s</a> - Diseñador DB y Desarrollador IA <img src="https://img.shields.io/badge/Desarrollador%20IA-%20?style=flat&color=yellow">
+  </li>
+</ul>
 
-## Learn More
+<hr>
 
-To learn more about Next.js, take a look at the following resources:
+<h2>🚀 Descripción</h2>
+<p style="display: flex; gap: 8px;">
+  <span><strong>S</strong>upport</span>
+  <span><strong>OP</strong>erations</span>
+  <span><strong>H</strong>uman</span>
+  <span><strong>IA</strong></span>
+  o por sus iniciales <strong>SOPHIA</strong>, es una web para la administración de tickets de Software asistido por Inteligencia Artificial
+</p>
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+<hr>
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</div>
