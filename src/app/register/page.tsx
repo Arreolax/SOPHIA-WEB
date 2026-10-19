@@ -68,11 +68,20 @@ function RegisterContent() {
       });
 
       if (respuesta.ok) {
+        const data = await respuesta.json();
         setIsLoading(false); 
         setIsSuccess(true); 
 
+        const cleanRole = String(data.role || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+        const isTecnicoOrAdmin = cleanRole === "tecnico" || cleanRole === "admin" || cleanRole.includes("tecnic") || cleanRole.includes("admin");
+        const targetUrl = data.redirectTo || (isTecnicoOrAdmin ? "/portal/dashboard" : "/soporte/dashboard");
+
         setTimeout(() => {
-          router.push("/portal/dashboard");
+          router.push(targetUrl);
           router.refresh();
         }, 800);
       } else {

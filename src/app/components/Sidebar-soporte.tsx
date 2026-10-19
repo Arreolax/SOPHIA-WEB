@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -11,37 +11,71 @@ import {
   PieChart,
   LogOut,
   User,
-  CheckCircle2, 
-  AlertCircle, 
+  CheckCircle2,
+  AlertCircle,
+  UserCheck,
 } from "lucide-react";
 import Image from "next/image";
 
 const navItems = [
-  { name: "Dashboard", href: "/portal/dashboard", icon: LayoutDashboard },
-  { name: "Mis Tickets", href: "/tickets", icon: Ticket },
-  { name: "Base de Conocimiento", href: "/knowledge", icon: BookOpen },
-  { name: "Reportes", href: "/reports", icon: PieChart },
+  { name: "Dashboard", href: "/soporte/dashboard", icon: LayoutDashboard },
+  { name: "Mis Tickets", href: "/soporte/tickets", icon: Ticket },
+  { name: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
+  { name: "Reportes", href: "/soporte/reports", icon: PieChart },
+  { name: "Menu del Soporte", href: "/soporte", icon: UserCheck}
 ];
+
+const renderRoleIcon = (role: string) => {
+  const norm = role?.toLowerCase() || "";
+  return <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />;
+};
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [userInfo, setUserInfo] = useState({
+    name: "Cargando...",
+    lastname: "",
+    role: "",
+  });
   const [notification, setNotification] = useState({
     show: false,
     message: "",
-    type: "success", 
+    type: "success",
   });
 
   const showNotification = (message: string, type: "success" | "error") => {
     setNotification({ show: true, message, type });
-    
-    // Ahora limpia el estado automáticamente para AMBOS casos (éxito y error)
+
     setTimeout(() => {
-      setNotification(prev => ({ ...prev, show: false }));
+      setNotification((prev) => ({ ...prev, show: false }));
     }, 3000);
   };
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await fetch("/api/me");
+        if (response.ok) {
+          const data = await response.json();
+          setUserInfo({
+            name: data.name,
+            lastname: data.lastname,
+            role: data.role,
+          });
+        } else {
+          setUserInfo({ name: "Invitado", lastname: "", role: "" });
+        }
+      } catch (error) {
+        console.error("Error obteniendo usuario:", error);
+        setUserInfo({ name: "Invitado", lastname: "", role: "" });
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   return (
     <>
@@ -119,23 +153,18 @@ export default function Sidebar() {
                       const data = await response.json();
 
                       if (response.ok) {
-                        // Mostramos el éxito y cerramos el menú
                         showNotification("Sesión cerrada con éxito", "success");
                         setIsMenuOpen(false);
 
-                        // Esperamos 1.5 segundos para que se vea la animación antes de salir
                         setTimeout(() => {
-                          // Ocultar el toast para resetear el estado antes de salir
-                          setNotification(prev => ({ ...prev, show: false })); 
-                          router.push('/login');
+                          setNotification((prev) => ({ ...prev, show: false }));
+                          router.push("/login");
                           router.refresh();
                         }, 1500);
                       } else {
-                        // Mostramos el error del backend
                         showNotification(`Error: ${data.mensaje}`, "error");
                       }
                     } catch (error) {
-                      // Mostramos error si el servidor está caído
                       showNotification(
                         "Error de conexión con el servidor",
                         "error",
@@ -158,12 +187,21 @@ export default function Sidebar() {
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-400 relative">
                 <Image
                   src="/images/avatar.jpg"
-                  alt="Sarah J."
+                  alt={userInfo.name}
                   fill
+                  sizes="32px"
                   className="object-cover"
                 />
               </div>
-              <span className="text-sm font-medium">Sarah J. (Agent)</span>
+              <div className="flex flex-col">
+                <span className="text-[19px] font-medium truncate max-w-[140px] capitalize">
+                  {userInfo.name} {userInfo.lastname}
+                </span>
+                <div className="flex items-center gap-1.5 text-xs text-gray-400 capitalize mt-0.5">
+                {renderRoleIcon(userInfo.role)}
+                <span className="truncate">{userInfo.role || "Cargando..."}</span>
+              </div>
+              </div>
             </div>
           </div>
         </div>

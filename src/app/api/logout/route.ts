@@ -6,6 +6,7 @@ export async function POST() {
     const cookieStore = await cookies();
     
     cookieStore.delete('sb-access-token');
+    cookieStore.delete('ur-token');
 
     return NextResponse.json({ 
       estado: 'Éxito', 
