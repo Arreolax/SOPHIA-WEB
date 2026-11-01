@@ -20,7 +20,7 @@ import Image from "next/image";
 
 const navItems = [
   { name: "Dashboard", href: "/portal/dashboard", icon: LayoutDashboard },
-  { name: "Mis Tickets", href: "/portal/tickets", icon: Ticket },
+  { name: "Mis Tickets", href: "/portal/ticketssTec", icon: Ticket },
   { name: "Base de Conocimiento", href: "/portal/knowledge", icon: BookOpen },
   { name: "Reportes", href: "/portal/reports", icon: PieChart },
   { name: "Menu del Portal", href: "/portal", icon: ShieldCheck}
@@ -34,6 +34,19 @@ const renderRoleIcon = (role: string) => {
   if (norm.includes("tecnic")) {
     return <Wrench className="w-3.5 h-3.5 text-blue-600 shrink-0" />;
   }
+};
+
+const getNavHref = (name: string, href: string, role: string) => {
+  const normalizedRole = role
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (name === "Mis Tickets" && normalizedRole.includes("admin")) {
+    return "/portal/ticketssAdmi";
+  }
+
+  return href;
 };
 
 export default function Sidebar() {
@@ -106,11 +119,12 @@ export default function Sidebar() {
       <aside className="w-64 h-screen bg-[#313652] text-gray-200 flex flex-col justify-between p-4 shrink-0">
         <nav className="flex flex-col gap-2 mt-4">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const href = getNavHref(item.name, item.href, userInfo.role);
+            const isActive = pathname === href;
             return (
               <Link
                 key={item.name}
-                href={item.href}
+                href={href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
                     ? "bg-white/10 text-white font-medium"
@@ -140,7 +154,7 @@ export default function Sidebar() {
                 </Link>
 
                 <Link
-                  href="/profile"
+                  href="/portal/profile"
                   className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
                   onClick={() => setIsMenuOpen(false)}
                 >

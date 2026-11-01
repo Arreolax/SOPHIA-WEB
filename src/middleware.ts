@@ -156,6 +156,34 @@ export async function middleware(request: NextRequest) {
       ? "/portal/dashboard"
       : "/soporte/dashboard";
 
+    let profileRedirect: string | null = null;
+    if (path === "/portal/profile" || path === "/portal/profile/") {
+      profileRedirect = isTecnicoOrAdmin
+        ? "/portal/profile/tecnico"
+        : "/portal/profile/usuario";
+    } else if (path === "/portal/profile/usuario" && isTecnicoOrAdmin) {
+      profileRedirect = "/portal/profile/tecnico";
+    } else if (path === "/portal/profile/tecnico" && !isTecnicoOrAdmin) {
+      profileRedirect = "/portal/profile/usuario";
+    }
+
+    if (profileRedirect) {
+      const redirectProfile = NextResponse.redirect(
+        new URL(profileRedirect, request.url),
+      );
+      if (shouldUpdateCookie) {
+        const newEncryptedRole = await encryptRole(role);
+        redirectProfile.cookies.set("ur-token", newEncryptedRole, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 7,
+        });
+      }
+      return redirectProfile;
+    }
+
     if (path === "/soporte" || path === "/soporte/") {
       return NextResponse.redirect(new URL(allowedHome, request.url));
     }
@@ -180,7 +208,9 @@ export async function middleware(request: NextRequest) {
       return redirectHome;
     }
 
-    if (!isTecnicoOrAdmin && path.startsWith("/portal")) {
+    const isProfileRoute =
+      path === "/portal/profile/usuario" || path === "/portal/profile/tecnico";
+    if (!isTecnicoOrAdmin && path.startsWith("/portal") && !isProfileRoute) {
       const redirectSoporte = NextResponse.redirect(
         new URL("/soporte/dashboard", request.url),
       );

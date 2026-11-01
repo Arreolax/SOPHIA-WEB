@@ -3,6 +3,13 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { decryptRole } from "../../lib/session";
 
+function getProfileValue(...values: unknown[]): string {
+  const value = values.find(
+    (item) => typeof item === "string" && item.trim().length > 0,
+  );
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export async function GET() {
   const cookieStore = await cookies();
   const token = cookieStore.get("sb-access-token")?.value;
@@ -64,6 +71,36 @@ export async function GET() {
     user.user_metadata?.apellido ||
     "";
 
+  const position = getProfileValue(
+    dbUser?.position,
+    dbUser?.puesto,
+    user.user_metadata?.position,
+    user.user_metadata?.puesto,
+  );
+  const department = getProfileValue(
+    dbUser?.department,
+    dbUser?.departamento,
+    user.user_metadata?.department,
+    user.user_metadata?.departamento,
+  );
+  const area = getProfileValue(
+    dbUser?.area,
+    user.user_metadata?.area,
+  );
+  const site = getProfileValue(
+    dbUser?.site,
+    dbUser?.sede,
+    user.user_metadata?.site,
+    user.user_metadata?.sede,
+  );
+  const phone = getProfileValue(
+    dbUser?.phone,
+    dbUser?.telefono,
+    user.phone,
+    user.user_metadata?.phone,
+    user.user_metadata?.telefono,
+  );
+
   const encryptedRoleToken = cookieStore.get("ur-token")?.value;
   let role = encryptedRoleToken ? await decryptRole(encryptedRoleToken) : null;
 
@@ -79,9 +116,16 @@ export async function GET() {
   }
 
   return NextResponse.json({
+    id: getProfileValue(dbUser?.employee_id, dbUser?.id_empleado) || user.id,
     name,
     lastname,
     role,
     email: user.email,
+    position,
+    department,
+    area,
+    site,
+    phone,
+    emailVerified: Boolean(user.email_confirmed_at || user.confirmed_at),
   });
 }

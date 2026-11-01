@@ -19,7 +19,7 @@ import Image from "next/image";
 
 const navItems = [
   { name: "Dashboard", href: "/soporte/dashboard", icon: LayoutDashboard },
-  { name: "Mis Tickets", href: "/soporte/tickets", icon: Ticket },
+  { name: "Mis Tickets", href: "/soporte/ticketss/consultarMT", icon: Ticket },
   { name: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
   { name: "Reportes", href: "/soporte/reports", icon: PieChart },
   { name: "Menu del Soporte", href: "/soporte", icon: UserCheck}
@@ -135,7 +135,7 @@ export default function Sidebar() {
                 </Link>
 
                 <Link
-                  href="/profile"
+                  href="/portal/profile"
                   className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
                   onClick={() => setIsMenuOpen(false)}
                 >

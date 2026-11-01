@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   Bell,
@@ -531,13 +532,13 @@ export default function MisSolicitudesPage() {
               </button>
             ))}
           </div>
-          <button
-            type="button"
+          <Link
+            href="/soporte/ticketss/crear"
             className="flex items-center gap-2 rounded-xl bg-[#313652] px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-[#262a40]"
           >
             <Plus className="h-4 w-4" />
             Nueva Solicitud
-          </button>
+          </Link>
         </div>
       </div>
 

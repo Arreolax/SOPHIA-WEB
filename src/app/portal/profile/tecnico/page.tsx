@@ -27,16 +27,39 @@ import {
   CircleCheck,
 } from "lucide-react";
 
-/* ---------- Datos de ejemplo (luego los reemplazas por Supabase) ---------- */
-const EMPLEADO = {
-  id: "EMP-84920",
-  nombre: "Tom Hansen",
-  puesto: "Ingeniero de Operaciones TI • Soporte Nivel 2",
-  email: "tom.hansen@company.com",
-  turno: "Turno Principal (08:00 - 17:00 CET)",
+type PerfilTecnico = {
+  id: string;
+  nombre: string;
+  puesto: string;
+  email: string;
+  emailVerificado: boolean;
+  telefono: string;
+  role: string;
   avatar: "/images/avatar.jpg",
-  stats: { resueltos: 14, csat: 4.9, sla: 98 },
-  colas: ["L2 Escalaciones", "Redes & VPN", "Active Directory", "Servidores Linux"],
+};
+
+type PerfilResponse = {
+  id?: string;
+  name?: string;
+  lastname?: string;
+  role?: string;
+  email?: string;
+  position?: string;
+  department?: string;
+  area?: string;
+  phone?: string;
+  emailVerified?: boolean;
+};
+
+const PERFIL_VACIO: PerfilTecnico = {
+  id: "",
+  nombre: "",
+  puesto: "",
+  email: "",
+  emailVerificado: false,
+  telefono: "",
+  role: "",
+  avatar: "/images/avatar.jpg",
 };
 
 type Preferencias = {
@@ -47,7 +70,7 @@ type Preferencias = {
 };
 
 const PREFS_INICIALES: Preferencias = {
-  nombre: EMPLEADO.nombre,
+  nombre: "",
   alertasUrgentes: true,
   notifCorreo: true,
   resumenDiario: false,
@@ -130,10 +153,12 @@ function CardHeader({
 export default function ProfilePage() {
   const router = useRouter();
 
+  const [perfil, setPerfil] = useState<PerfilTecnico>(PERFIL_VACIO);
   const [prefs, setPrefs] = useState<Preferencias>(PREFS_INICIALES);
   const [guardado, setGuardado] = useState<Preferencias>(PREFS_INICIALES);
   const [editandoNombre, setEditandoNombre] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [errorPerfil, setErrorPerfil] = useState("");
   const [toast, setToast] = useState<{
     show: boolean;
     msg: string;
@@ -141,6 +166,42 @@ export default function ProfilePage() {
   }>({ show: false, msg: "", type: "success" });
 
   const hayCambios = JSON.stringify(prefs) !== JSON.stringify(guardado);
+
+  useEffect(() => {
+    const cargarPerfil = async () => {
+      try {
+        const response = await fetch("/api/me");
+        if (!response.ok) {
+          throw new Error("No se pudo cargar la información del perfil.");
+        }
+
+        const data = (await response.json()) as PerfilResponse;
+        const nombre = [data.name, data.lastname].filter(Boolean).join(" ");
+        const puesto = [data.department, data.position, data.area]
+          .filter(Boolean)
+          .join(" • ");
+
+        setPerfil({
+          ...PERFIL_VACIO,
+          id: data.id || "",
+          nombre,
+          puesto,
+          email: data.email || "",
+          emailVerificado: Boolean(data.emailVerified),
+          telefono: data.phone || "",
+          role: data.role || "",
+        });
+
+        const preferenciasActualizadas = { ...PREFS_INICIALES, nombre };
+        setPrefs(preferenciasActualizadas);
+        setGuardado(preferenciasActualizadas);
+      } catch {
+        setErrorPerfil("No se pudo cargar la información de tu perfil.");
+      }
+    };
+
+    void cargarPerfil();
+  }, []);
 
   // Avisa al navegador si intentas cerrar la pestaña con cambios sin guardar
   useEffect(() => {
@@ -200,6 +261,11 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto w-full max-w-6xl">
       {/* Toast */}
+      {errorPerfil && (
+        <p role="alert" className="mb-4 text-sm text-red-600">
+          {errorPerfil}
+        </p>
+      )}
       <div
         className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg px-6 py-3 text-white shadow-xl transition-all duration-500 ${
           toast.show
@@ -277,13 +343,9 @@ export default function ProfilePage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-700">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            En turno • Disponible para asignaciones
-          </div>
           <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
             <IdCard className="h-4 w-4 text-[#313652]" />
-            {EMPLEADO.id}
+            {perfil.id}
           </div>
         </div>
       </div>
@@ -295,7 +357,7 @@ export default function ProfilePage() {
             <div className="relative">
               <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-md ring-2 ring-indigo-100">
                 <Image
-                  src={EMPLEADO.avatar}
+                  src={perfil.avatar}
                   alt={prefs.nombre}
                   fill
                   sizes="96px"
@@ -314,15 +376,13 @@ export default function ProfilePage() {
             <h2 className="mt-4 text-lg font-bold text-slate-800">
               {prefs.nombre}
             </h2>
-            <p className="mt-1 text-xs text-slate-600">{EMPLEADO.puesto}</p>
+            <p className="mt-1 text-xs text-slate-600">
+              {perfil.puesto || perfil.role}
+            </p>
             <p className="mt-2 flex items-center gap-1.5 font-mono text-xs text-slate-500">
               <Mail className="h-3.5 w-3.5" />
-              {EMPLEADO.email}
+              {perfil.email}
             </p>
-            <div className="mt-3 flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              {EMPLEADO.turno}
-            </div>
           </div>
 
           <hr className="my-5 border-slate-200" />
@@ -332,36 +392,27 @@ export default function ProfilePage() {
               <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
                 Desempeño del mes
               </h3>
-              <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
-                Abril 2024
-              </span>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col items-center rounded-xl border border-slate-200 p-3 text-center">
                 <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
                   <CircleCheck className="h-4 w-4" />
                 </div>
-                <span className="text-lg font-bold text-slate-800">
-                  {EMPLEADO.stats.resueltos}
-                </span>
+                <span className="text-lg font-bold text-slate-800" />
                 <span className="text-[10px] text-slate-500">Resueltos</span>
               </div>
               <div className="flex flex-col items-center rounded-xl border border-slate-200 p-3 text-center">
                 <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-500">
                   <Star className="h-4 w-4" />
                 </div>
-                <span className="text-lg font-bold text-slate-800">
-                  {EMPLEADO.stats.csat} ★
-                </span>
+                <span className="text-lg font-bold text-slate-800" />
                 <span className="text-[10px] text-slate-500">CSAT Valor</span>
               </div>
               <div className="flex flex-col items-center rounded-xl border border-slate-200 p-3 text-center">
                 <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
                   <Gauge className="h-4 w-4" />
                 </div>
-                <span className="text-lg font-bold text-slate-800">
-                  {EMPLEADO.stats.sla}%
-                </span>
+                <span className="text-lg font-bold text-slate-800" />
                 <span className="text-[10px] text-slate-500">SLA Éxito</span>
               </div>
             </div>
@@ -374,23 +425,6 @@ export default function ProfilePage() {
               Colas de soporte asignadas
             </h3>
             <div className="flex flex-wrap gap-2">
-              {EMPLEADO.colas.map((c, i) => {
-                const dots = [
-                  "bg-indigo-500",
-                  "bg-sky-500",
-                  "bg-emerald-500",
-                  "bg-violet-500",
-                ];
-                return (
-                  <span
-                    key={c}
-                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700"
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${dots[i % 4]}`} />
-                    {c}
-                  </span>
-                );
-              })}
             </div>
           </div>
 
@@ -414,7 +448,7 @@ export default function ProfilePage() {
               subtitle="Información personal e identificación corporativa registrada"
               right={
                 <span className="rounded-md bg-slate-100 px-2.5 py-1 font-mono text-[11px] font-semibold text-slate-600">
-                  {EMPLEADO.id}
+                  {perfil.id}
                 </span>
               }
             />
@@ -451,13 +485,42 @@ export default function ProfilePage() {
                   <span className="text-xs font-medium text-slate-600">
                     Correo Electrónico Corporativo
                   </span>
-                  <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    <BadgeCheck className="h-3 w-3" />
-                    Verificado
-                  </span>
+                  {perfil.emailVerificado && (
+                    <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      <BadgeCheck className="h-3 w-3" />
+                      Verificado
+                    </span>
+                  )}
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
-                  {EMPLEADO.email}
+                  {perfil.email}
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">
+                  Teléfono
+                </span>
+                <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
+                  {perfil.telefono}
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">
+                  Puesto y departamento
+                </span>
+                <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
+                  {perfil.puesto}
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">
+                  Tipo de cuenta
+                </span>
+                <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
+                  {perfil.role}
                 </div>
               </div>
             </div>
@@ -529,7 +592,7 @@ export default function ProfilePage() {
               <CardHeader
                 icon={<ShieldCheck className="h-4 w-4" />}
                 title="Seguridad y Credenciales"
-                subtitle="Acceso corporativo federado SSO"
+                subtitle="Información de acceso de tu cuenta"
               />
               <button
                 type="button"
@@ -542,9 +605,6 @@ export default function ProfilePage() {
                   <p className="text-sm font-semibold text-slate-800">
                     Cambiar Contraseña
                   </p>
-                  <p className="text-[11px] text-slate-500">
-                    Última actualización hace 45 días
-                  </p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-slate-400" />
               </button>
@@ -552,7 +612,7 @@ export default function ProfilePage() {
               <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
                 <span className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Protocolo SSO Azure AD activo
+                  Sesión activa
                 </span>
                 <Link
                   href="#"
