@@ -19,6 +19,7 @@ import {
   ArrowLeft
 } from "lucide-react";
 
+import { FallingLeavesWrapper } from "../components/FallingLeavesWrapper";
 
 function RegisterContent() {
   const searchParams = useSearchParams();
@@ -142,6 +143,15 @@ function RegisterContent() {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-hidden bg-[#F4F7FB] p-4 font-sans">
+
+      <FallingLeavesWrapper
+        className="fixed inset-0 pointer-events-none z-0"
+        shapes={["maple", "birch", "oak", "oval"]}
+        count={50}
+        speed={2}
+        wind={-5}
+        size={100}
+      />
 
       <Link
         href="/"

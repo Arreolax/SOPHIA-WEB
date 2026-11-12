@@ -15,6 +15,8 @@ import {
   ArrowLeft,
 } from "lucide-react";
 
+import { FallingLeavesWrapper } from "../components/FallingLeavesWrapper";
+
 function LoginContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -111,7 +113,15 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-hidden bg-[#F4F7FB] p-4 font-sans">
-
+      <FallingLeavesWrapper
+        className="fixed inset-0 pointer-events-none z-0"
+        shapes={["maple", "birch", "oak", "oval"]}
+        count={50}
+        speed={2}
+        wind={-5}
+        size={100}
+      />
+      
       <Link
         href="/"
         className="absolute top-6 left-6 z-20 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#323454] transition-colors group"
@@ -119,7 +129,7 @@ function LoginContent() {
         <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
         <span>Volver al inicio</span>
       </Link>
-      
+
       <div className="absolute top-[-10%] left-[-10%] w-125 h-125 rounded-full bg-[#323454]/15 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-5%] w-150 h-150 rounded-full bg-[#323454]/20 blur-[130px] pointer-events-none" />
 
@@ -256,8 +266,8 @@ function LoginContent() {
                 type="submit"
                 disabled={isLoading || isSuccess}
                 className={`w-full py-3 px-4 rounded-xl text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 ${isSuccess
-                    ? "bg-emerald-600 shadow-[0_8px_20px_rgba(5,150,105,0.25)]"
-                    : "bg-[#323454] hover:bg-[#181928] active:scale-[0.99] shadow-[0_8px_20px_rgba(50,52,84,0.25)]"
+                  ? "bg-emerald-600 shadow-[0_8px_20px_rgba(5,150,105,0.25)]"
+                  : "bg-[#323454] hover:bg-[#181928] active:scale-[0.99] shadow-[0_8px_20px_rgba(50,52,84,0.25)]"
                   } ${isLoading || isSuccess
                     ? "opacity-90 cursor-not-allowed"
                     : "cursor-pointer"
