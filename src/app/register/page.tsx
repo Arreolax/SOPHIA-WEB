@@ -1,264 +1,250 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import React, { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import {
+  Sparkles,
+  Headset,
+  MonitorCog,
+  Clock,
+  Bot,
+  Activity,
+  ListChecks,
+  Wrench,
+  Scale,
+  Database,
+  Radio,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 
-function RegisterContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
 
-  const [nameValue, setNameValue] = useState("");
-  const [usernameValue, setusernameValue] = useState("");
-  const [emailValue, setEmailValue] = useState("");
-  const [passwordValue, setPasswordValue] = useState("");
+export default function Home() {
+  const [resultado, setResultado] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(false);
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [capsWarning, setCapsWarning] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-
-  useEffect(() => {
-    setIsLoading(false);
-    setIsSuccess(false);
-    setErrorMessage("");
-    setNameValue("");
-    setusernameValue("");
-    setEmailValue("");
-    setPasswordValue("");
-  }, []);
-
-  useEffect(() => {
-    if (searchParams.get("session") === "expired") {
-      setErrorMessage(
-        "Sesión no válida o expirada. Por favor regístrate o inicia sesión.",
-      );
-    }
-  }, [searchParams]);
-
-  const handleKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.getModifierState("CapsLock")) {
-      setCapsWarning(true);
-    } else {
-      setCapsWarning(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setErrorMessage("");
-    setIsLoading(true); 
-    setIsSuccess(false);
-
+  const probarConexion = async () => {
+    setCargando(true);
+    setResultado(null);
     try {
-
-      const respuesta = await fetch("/api/register/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          name: nameValue, 
-          username: usernameValue,
-          email: emailValue, 
-          password: passwordValue 
-        }),
-      });
-
-      if (respuesta.ok) {
-        const data = await respuesta.json();
-        setIsLoading(false); 
-        setIsSuccess(true); 
-
-        const cleanRole = String(data.role || "")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .trim();
-        const isTecnicoOrAdmin = cleanRole === "tecnico" || cleanRole === "admin" || cleanRole.includes("tecnic") || cleanRole.includes("admin");
-        const targetUrl = data.redirectTo || (isTecnicoOrAdmin ? "/portal/dashboard" : "/soporte/dashboard");
-
-        setTimeout(() => {
-          router.push(targetUrl);
-          router.refresh();
-        }, 800);
-      } else {
-        setIsLoading(false); 
-        const errorData = await respuesta.json();
-        setErrorMessage(
-          errorData.mensaje || errorData.message || "Error en el registro.",
-        );
-      }
+      const respuesta = await fetch("/api/test");
+      const datos = await respuesta.json();
+      setResultado(
+        `${datos.estado} ${datos.mensaje ? "- " + datos.mensaje : ""}`
+      );
     } catch (error) {
-      setIsLoading(false); 
-      setErrorMessage("Ocurrió un error al intentar conectarse al servidor.");
+      setResultado("Error 🔴 - No se pudo conectar con la API local.");
     }
+    setCargando(false);
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gray-100 overflow-hidden">
-      <div
-        className="absolute top-0 left-0 w-1/2 h-full bg-[#323454]"
-        style={{ clipPath: "polygon(0 0, 100% 0, 100% 45%, 0 45%)" }}
-      ></div>
-      <div
-        className="absolute top-0 right-0 w-1/2 h-full bg-[#323454]"
-        style={{ clipPath: "polygon(0 0, 100% 0, 100% 45%, 0 45%)" }}
-      ></div>
+    <div className="min-h-screen w-full bg-[#F4F7FB] text-slate-900 font-sans relative overflow-x-hidden flex flex-col">
+      {/* Efectos de luz difuminada de fondo */}
+      <div className="absolute top-[10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#323454]/10 blur-[130px] pointer-events-none" />
+      <div className="absolute bottom-[5%] right-[-10%] w-[600px] h-[600px] rounded-full bg-indigo-200/30 blur-[140px] pointer-events-none" />
 
-      <div className="relative bg-[#323454] w-10/12 md:w-106.25 p-8 shadow-md text-center m-0">
-        <div className="relative bg-white w-full md:w-90 p-8 shadow-md text-center mx-auto">
-          <div className="flex justify-center mb-6 relative w-full h-24">
-            <Image
-              src="/images/300x150.png"
-              alt="Logo"
-              fill
-              sizes="(max-width: 768px) 100vw, 360px"
-              className="object-contain"
-              priority
-            />
+
+      {/* Barra de navegación superior */}
+      <header className="w-full bg-white/85 backdrop-blur-md border-b border-slate-100 sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold text-[#1E233A]">SOPHIA Web</span>
           </div>
 
-          <form id="registerForm" className="space-y-6" onSubmit={handleSubmit}>
-            <div className="flex gap-4 w-full">
-              <div className="flex items-center border-b border-gray-500 pb-2 focus-within:border-[#323454] transition w-1/2">
-                <i className="fa fa-id-card text-black mr-3"></i>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={nameValue}
-                  onChange={(e) => setNameValue(e.target.value)}
-                  placeholder="Nombre"
-                  className="bg-transparent outline-none w-full text-black"
-                  required
-                  disabled={isLoading || isSuccess}
-                />
+          {/* Únicos botones de navegación: Iniciar Sesión y Registrarse */}
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Link
+              href="/login"
+              className="text-xs sm:text-sm font-medium text-slate-600 hover:text-[#323454] px-3 py-2 rounded-lg transition-colors"
+            >
+              Iniciar Sesión
+            </Link>
+            <Link
+              href="/register"
+              className="text-xs sm:text-sm font-semibold text-white bg-[#323454] hover:bg-[#181928] px-4 py-2 rounded-lg transition-all shadow-sm"
+            >
+              Registrarse
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Contenido Principal */}
+      <main className="relative flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-12 sm:py-16 z-10 flex flex-col items-center">
+        {/* Badge superior */}
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-200/70 text-[#232946] text-[10px] sm:text-[11px] font-bold tracking-wider uppercase mb-5">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#232946]" />
+          <span>SOPHIA • IT OPERATIONS & INTELLIGENCE ECOSYSTEM</span>
+        </div>
+
+        {/* Título Principal */}
+        <h1 className="text-3xl sm:text-4xl md:text-[42px] font-extrabold text-center tracking-tight text-[#1E233A] leading-tight mb-2">
+          Support OPerations Human IA{" "}
+          <span className="font-normal text-slate-500">(SOPHIA)</span>
+        </h1>
+
+        {/* Subtítulo */}
+        <p className="text-xs sm:text-sm font-medium text-slate-500 text-center mb-8">
+          Next-Gen IT Ticketing & Cognitive Service Desk
+        </p>
+
+        {/* Tarjeta descriptiva central (con línea azul arriba) */}
+        <div className="w-full max-w-3xl bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden mb-10">
+          <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+          <div className="p-5 sm:p-6 flex items-start gap-4">
+            <div className="w-9 h-9 rounded-xl bg-slate-100 text-[#232946] flex items-center justify-center shrink-0 mt-0.5">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed">
+              Una aplicación que proporciona un portal para dos tipos de usuarios —{" "}
+              <strong className="font-semibold text-slate-800">
+                Técnicos/Administradores
+              </strong>{" "}
+              y <strong className="font-semibold text-slate-800">Usuarios</strong> —
+              con autenticación respaldada por Supabase. La plataforma incluye
+              tableros separados para solicitantes y personal de soporte, un flujo
+              integral de registro, gestión de sesiones seguras mediante cookies y
+              un conjunto de rutas API optimizadas.
+            </p>
+          </div>
+        </div>
+
+        {/* Grid de dos columnas: Rectángulos informativos (no cliqueables y con línea azul arriba) */}
+        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {/* Rectángulo 1: Portal de Usuarios */}
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[240px]">
+            <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+            <div className="p-7 sm:p-8 flex-1 flex flex-col justify-between">
+              <div>
+                <div className="w-11 h-11 rounded-xl bg-slate-100 text-[#232946] flex items-center justify-center mb-5">
+                  <Headset className="w-5 h-5" />
+                </div>
+
+                <h2 className="text-lg font-bold text-[#1E233A] mb-2">
+                  Portal de Usuarios
+                </h2>
+
+                <p className="text-xs sm:text-[13px] text-slate-500 leading-relaxed mb-6">
+                  Crea tickets de soporte, consulta el estado de tus solicitudes
+                  en tiempo real y recibe asistencia inmediata con el agente de IA.
+                </p>
               </div>
 
-              <div className="flex items-center border-b border-gray-500 pb-2 focus-within:border-[#323454] transition w-1/2">
-                <i className="fa fa-id-card text-black mr-3"></i>
-                <input
-                  type="text"
-                  id="username"
-                  name="username"
-                  value={usernameValue}
-                  onChange={(e) => setusernameValue(e.target.value)}
-                  placeholder="Usuario"
-                  className="bg-transparent outline-none w-full text-black"
-                  required
-                  disabled={isLoading || isSuccess}
-                />
+              {/* Etiquetas inferiores */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
+                  <Clock className="w-3 h-3 text-slate-500" />
+                  Autoservicio 24/7
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
+                  <Bot className="w-3 h-3 text-slate-500" />
+                  Asistente IA Copilot
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
+                  <Activity className="w-3 h-3 text-slate-500" />
+                  Seguimiento en vivo
+                </span>
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center border-b border-gray-500 pb-2 focus-within:border-[#323454] transition">
-              <i className="fa fa-user text-black mr-3"></i>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={emailValue}
-                onChange={(e) => setEmailValue(e.target.value)}
-                placeholder="Email"
-                className="bg-transparent outline-none w-full text-black"
-                required
-                disabled={isLoading || isSuccess}
-              />
+          {/* Rectángulo 2: Consola de Técnicos & Admin */}
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[240px]">
+            <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+            <div className="p-7 sm:p-8 flex-1 flex flex-col justify-between">
+              <div>
+                <div className="w-11 h-11 rounded-xl bg-[#232946] text-white flex items-center justify-center mb-5">
+                  <MonitorCog className="w-5 h-5" />
+                </div>
+
+                <h2 className="text-lg font-bold text-[#1E233A] mb-2">
+                  Consola de Técnicos & Admin
+                </h2>
+
+                <p className="text-xs sm:text-[13px] text-slate-500 leading-relaxed mb-6">
+                  Gestión y resolución de incidentes IT, asistencia técnica
+                  potenciada por IA, runbooks interactivos y balance de cargas
+                  para supervisores.
+                </p>
+              </div>
+
+              {/* Etiquetas inferiores */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
+                  <ListChecks className="w-3 h-3 text-slate-500" />
+                  Cola de Tickets L1/L3
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
+                  <Wrench className="w-3 h-3 text-slate-500" />
+                  AI Copilot ITIL
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
+                  <Scale className="w-3 h-3 text-slate-500" />
+                  Balance de Cargas
+                </span>
+              </div>
             </div>
+          </div>
+        </div>
 
-            <div className="relative flex items-center border-b border-gray-500 pb-2 focus-within:border-[#323454] transition">
-              <i className="fa fa-key text-black mr-3"></i>
-              <input
-                type={showPassword ? "text" : "password"}
-                id="password"
-                name="password"
-                value={passwordValue}
-                onChange={(e) => setPasswordValue(e.target.value)}
-                placeholder="Contraseña"
-                className="bg-transparent outline-none w-full pr-10 text-black"
-                onKeyUp={handleKeyUp}
-                required
-                disabled={isLoading || isSuccess}
-              />
+        {/* Rectángulo inferior: Diagnóstico de Infraestructura y Base de Datos (con línea azul arriba) */}
+        <div className="w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden">
+          <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+          <div className="p-6 sm:p-8 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="max-w-md">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Database className="w-4 h-4 text-[#232946]" />
+                  <h3 className="text-sm font-bold text-[#1E233A]">
+                    Diagnóstico de Infraestructura y Base de Datos
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Verificación de conectividad en tiempo real con Supabase (Auth,
+                  PostgreSQL, RLS & Edge Functions).
+                </p>
+              </div>
+
+              {/* Tercer botón único: Probar Base de Datos */}
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 transition"
-                disabled={isLoading || isSuccess}
+                onClick={probarConexion}
+                disabled={cargando}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-[#232946] text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed self-end sm:self-center shrink-0"
               >
-                <i
-                  className={`fa-solid ${showPassword ? "fa-eye-slash" : "fa-eye"}`}
-                ></i>
-              </button>
-            </div>
-
-            {capsWarning && (
-              <div className="text-xs text-yellow-600 flex items-center gap-1 mt-2">
-                <i className="fa-solid fa-triangle-exclamation"></i>
-                <span>Bloq Mayús activado</span>
-              </div>
-            )}
-
-            {errorMessage && (
-              <div className="bg-opacity-40 text-red-600 font-bold rounded p-2 bg-red-600/10">
-                {errorMessage}
-              </div>
-            )}
-
-            <div className="flex flex-col items-center gap-2">
-              <button
-                type="submit"
-                disabled={isLoading || isSuccess}
-                className={`mt-6 inline-flex justify-center items-center rounded px-6 py-3 text-white font-medium transition w-full ${
-                  isSuccess
-                    ? "bg-green-600 hover:bg-green-700"
-                    : "bg-[#323454] hover:bg-[#181928]"
-                } ${(isLoading || isSuccess) ? "opacity-90 cursor-not-allowed" : ""}`}
-              >
-                {/* Renderizado condicional del contenido del botón */}
-                {isLoading ? (
-                  <>
-                    <i className="fa-solid fa-spinner fa-spin mr-2"></i>
-                    Procesando...
-                  </>
-                ) : isSuccess ? (
-                  <>
-                    <i className="fa-solid fa-check mr-2"></i>
-                    ¡Registrado!
-                  </>
+                {cargando ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  "REGISTRARSE"
+                  <Radio className="w-4 h-4" />
                 )}
+                <span>
+                  {cargando ? "Conectando..." : "Probar Base de Datos"}
+                </span>
               </button>
-
-              <Link
-                href="/login"
-                className="text-sm text-gray-700 hover:underline mt-2"
-              >
-                ¿Ya tienes cuenta? Inicia sesión
-              </Link>
             </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-export default function RegisterPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gray-100">
-          Cargando plataforma...
+            {/* Resultado de la prueba de /api/test */}
+            {resultado && (
+              <div
+                className={`p-3.5 rounded-xl text-xs font-medium flex items-center gap-2 transition-colors ${
+                  resultado.includes("Exitosa")
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-red-50 text-red-700 border border-red-200"
+                }`}
+              >
+                {resultado.includes("Exitosa") ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                )}
+                <span>{resultado}</span>
+              </div>
+            )}
+          </div>
         </div>
-      }
-    >
-      <RegisterContent />
-    </Suspense>
+      </main>
+    </div>
   );
 }

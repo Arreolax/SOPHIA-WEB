@@ -3,19 +3,30 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import {
+  AtSign,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  AlertTriangle,
+  Loader2,
+  Check,
+  ArrowRight,
+} from "lucide-react";
 
 function LoginContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   const [emailValue, setEmailValue] = useState("");
   const [passwordValue, setPasswordValue] = useState("");
-  
+  const [rememberMe, setRememberMe] = useState(false);
+
   const [showPassword, setShowPassword] = useState(false);
   const [capsWarning, setCapsWarning] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -23,13 +34,13 @@ function LoginContent() {
     setIsLoading(false);
     setIsSuccess(false);
     setErrorMessage("");
-    setEmailValue("");
-    setPasswordValue("");
   }, []);
 
   useEffect(() => {
     if (searchParams.get("session") === "expired") {
-      setErrorMessage("Sesión no válida o expirada. Por favor inicia sesión.");
+      setErrorMessage(
+        "Sesión no válida o expirada. Por favor inicia sesión nuevamente."
+      );
     }
   }, [searchParams]);
 
@@ -44,168 +55,257 @@ function LoginContent() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMessage("");
-    setIsLoading(true); 
+    setIsLoading(true);
     setIsSuccess(false);
-    
+
     try {
-      const respuesta = await fetch('/api/login/', {
-        method: 'POST',
+      const respuesta = await fetch("/api/login/", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email: emailValue, password: passwordValue }),
+        body: JSON.stringify({
+          email: emailValue,
+          password: passwordValue,
+          remember: rememberMe,
+        }),
       });
 
       if (respuesta.ok) {
         const data = await respuesta.json();
-        setIsLoading(false); 
-        setIsSuccess(true); 
-        
-        const cleanRole = String(data.role || '')
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
+        setIsLoading(false);
+        setIsSuccess(true);
+
+        const cleanRole = String(data.role || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
           .toLowerCase()
           .trim();
-        const isTecnicoOrAdmin = cleanRole === 'tecnico' || cleanRole === 'admin' || cleanRole.includes('tecnic') || cleanRole.includes('admin');
-        const targetUrl = data.redirectTo || (isTecnicoOrAdmin ? '/portal/dashboard' : '/soporte/dashboard');
+        const isTecnicoOrAdmin =
+          cleanRole === "tecnico" ||
+          cleanRole === "admin" ||
+          cleanRole.includes("tecnic") ||
+          cleanRole.includes("admin");
+        const targetUrl =
+          data.redirectTo ||
+          (isTecnicoOrAdmin ? "/portal/dashboard" : "/soporte/dashboard");
 
         setTimeout(() => {
-          router.push(targetUrl); 
+          router.push(targetUrl);
           router.refresh();
         }, 800);
       } else {
-        setIsLoading(false); 
+        setIsLoading(false);
         const errorData = await respuesta.json();
-        setErrorMessage(errorData.message || "Usuario o contraseña incorrectos.");
+        setErrorMessage(
+          errorData.mensaje ||
+            errorData.message ||
+            "Credenciales incorrectas. Verifica tus datos."
+        );
       }
     } catch (error) {
-      setIsLoading(false); 
+      setIsLoading(false);
       setErrorMessage("Ocurrió un error al intentar conectarse al servidor.");
     }
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gray-100 overflow-hidden">
-      
-      <div
-        className="absolute top-0 left-0 w-1/2 h-full bg-[#323454]"
-        style={{ clipPath: "polygon(0 0, 100% 0, 100% 45%, 0 45%)" }}
-      ></div>
+    <div className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-hidden bg-[#F4F7FB] p-4 font-sans">
+      {/* Efectos de luz difuminada en el fondo con el tono #323454 */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#323454]/15 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-[#323454]/20 blur-[130px] pointer-events-none" />
 
-      <div
-        className="absolute top-0 right-0 w-1/2 h-full bg-[#323454]"
-        style={{ clipPath: "polygon(0 0, 100% 0, 100% 45%, 0 45%)" }}
-      >
+      {/* Encabezado externo centrado */}
+      <div className="text-center mb-6 z-10">
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-1.5">
+          Iniciar sesión
+        </h1>
+        <p className="text-sm text-slate-500">
+          Ingresa tus credenciales para continuar
+        </p>
       </div>
 
-      <div className="relative bg-[#323454] w-10/12 md:w-[425px] p-8 shadow-md text-center m-0">
-        <div className="relative bg-white w-full md:w-[360px] p-8 shadow-md text-center mx-auto">
-          
-          <div className="flex justify-center mb-6 relative w-full h-24">
-            <Image 
-              src="/images/300x150.png" 
-              alt="Logo" 
-              fill
-              sizes="(max-width: 768px) 100vw, 360px"
-              className="object-contain"
-              priority
-            />
+      {/* Tarjeta principal con el estilo del registro */}
+      <div className="w-full max-w-[460px] bg-white rounded-2xl shadow-[0_20px_50px_rgba(50,52,84,0.08)] relative overflow-hidden z-10 border border-slate-100">
+        {/* Borde superior con el azul #323454 */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+
+        <div className="p-8 sm:p-10">
+          {/* Separador superior con texto */}
+          <div className="relative flex items-center justify-center mb-6">
+            <div className="border-t border-slate-100 w-full" />
+            <span className="bg-white px-3 text-[11px] font-bold tracking-wider text-slate-400 uppercase whitespace-nowrap">
+              INGRESA TUS CREDENCIALES
+            </span>
+            <div className="border-t border-slate-100 w-full" />
           </div>
 
-          <form id="loginForm" className="space-y-6" onSubmit={handleSubmit}>
-            
-            <div className="flex items-center border-b border-gray-500 pb-2 focus-within:border-[#323454] transition">
-              <i className="fa fa-user text-black mr-3"></i>
-              <input 
-                type="text" 
-                id="email" 
-                name="email" 
-                value={emailValue}
-                onChange={(e) => setEmailValue(e.target.value)}
-                placeholder="Usuario o Email" 
-                className="bg-transparent outline-none w-full text-black" 
-                required 
-                disabled={isLoading || isSuccess}
-              />
-            </div>
-
-            <div className="relative flex items-center border-b border-gray-500 pb-2 focus-within:border-[#323454] transition">
-              <i className="fa fa-key text-black mr-3"></i>
-              <input 
-                type={showPassword ? "text" : "password"} 
-                id="password" 
-                name="password" 
-                value={passwordValue}
-                onChange={(e) => setPasswordValue(e.target.value)}
-                placeholder="Contraseña" 
-                className="bg-transparent outline-none w-full pr-10 text-black" 
-                onKeyUp={handleKeyUp} 
-                required 
-                disabled={isLoading || isSuccess}
-              />
-              <button 
-                type="button" 
-                onClick={() => setShowPassword(!showPassword)} 
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 transition"
-                disabled={isLoading || isSuccess}
+          {/* Formulario */}
+          <form id="loginForm" onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-xs font-semibold text-slate-700 mb-1.5"
               >
-                <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-              </button>
+                Usuario o Correo
+              </label>
+              <div className="relative">
+                <AtSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  id="email"
+                  name="email"
+                  value={emailValue}
+                  onChange={(e) => setEmailValue(e.target.value)}
+                  placeholder="usuario@empresa.com"
+                  disabled={isLoading || isSuccess}
+                  className="w-full pl-10 pr-3.5 py-2.5 text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-[#323454] focus:ring-2 focus:ring-[#323454]/15 transition-all placeholder:text-slate-400 disabled:opacity-60"
+                  required
+                />
+              </div>
             </div>
 
-            {capsWarning && (
-              <div className="text-xs text-yellow-600 flex items-center gap-1 mt-2">
-                <i className="fa-solid fa-triangle-exclamation"></i>
-                <span>Bloq Mayus activado</span>
+            {/* Contraseña */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="password"
+                  className="text-xs font-semibold text-slate-700"
+                >
+                  Contraseña
+                </label>
+                <Link
+                  href="/recuperar-contrasena"
+                  className="text-xs font-semibold text-[#323454] hover:text-[#181928] transition-colors"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
-            )}
-
-            {errorMessage && (
-              <div className="bg-opacity-40 text-red-600 font-bold rounded p-2 bg-red-600/10">
-                {errorMessage}
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  name="password"
+                  value={passwordValue}
+                  onChange={(e) => setPasswordValue(e.target.value)}
+                  onKeyUp={handleKeyUp}
+                  placeholder="••••••••••••"
+                  disabled={isLoading || isSuccess}
+                  className="w-full pl-10 pr-10 py-2.5 text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-[#323454] focus:ring-2 focus:ring-[#323454]/15 transition-all placeholder:text-slate-400 tracking-wider disabled:opacity-60"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading || isSuccess}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
-            )}
 
-            <div className="flex flex-col items-center gap-2">
-              <button 
-                type="submit" 
+              {/* Advertencia de Bloq Mayús */}
+              {capsWarning && (
+                <div className="text-xs text-amber-600 flex items-center gap-1.5 mt-2 font-medium">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Bloq Mayús activado</span>
+                </div>
+              )}
+            </div>
+
+            {/* Recordar sesión */}
+            <div className="flex items-center">
+              <input
+                id="remember"
+                name="remember"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
                 disabled={isLoading || isSuccess}
-                className={`mt-6 inline-flex justify-center items-center rounded px-6 py-3 text-white font-medium transition w-full ${
-                  isSuccess 
-                    ? "bg-green-600 hover:bg-green-700" 
-                    : "bg-[#323454] hover:bg-[#181928]"
-                } ${(isLoading || isSuccess) ? "opacity-90 cursor-not-allowed" : ""}`}
+                className="h-4 w-4 rounded border-slate-300 text-[#323454] focus:ring-[#323454] cursor-pointer"
+              />
+              <label
+                htmlFor="remember"
+                className="ml-2 block text-xs font-medium text-slate-600 cursor-pointer select-none"
+              >
+                Recordar sesión
+              </label>
+            </div>
+
+            {/* Mensaje de Error */}
+            {errorMessage && (
+              <div className="text-xs text-red-600 font-semibold rounded-xl p-3 bg-red-50 border border-red-100 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Botón Principal con el azul #323454 */}
+            <div className="pt-1">
+              <button
+                type="submit"
+                disabled={isLoading || isSuccess}
+                className={`w-full py-3 px-4 rounded-xl text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+                  isSuccess
+                    ? "bg-emerald-600 shadow-[0_8px_20px_rgba(5,150,105,0.25)]"
+                    : "bg-[#323454] hover:bg-[#181928] active:scale-[0.99] shadow-[0_8px_20px_rgba(50,52,84,0.25)]"
+                } ${
+                  isLoading || isSuccess
+                    ? "opacity-90 cursor-not-allowed"
+                    : "cursor-pointer"
+                }`}
               >
                 {isLoading ? (
                   <>
-                    <i className="fa-solid fa-spinner fa-spin mr-2"></i>
-                    Procesando...
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Iniciando sesión...</span>
                   </>
                 ) : isSuccess ? (
                   <>
-                    <i className="fa-solid fa-check mr-2"></i>
-                    ¡Conectado!
+                    <Check className="w-4 h-4" />
+                    <span>¡Bienvenido!</span>
                   </>
                 ) : (
-                  "INICIO DE SESIÓN"
+                  <>
+                    <span>Iniciar Sesión</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 )}
               </button>
-              
-              <Link href="/register" className="text-sm text-gray-700 hover:underline mt-2">
-                ¿No tienes cuenta? Registrate 
-              </Link>
             </div>
-            
           </form>
         </div>
       </div>
+
+      {/* Enlace inferior externo */}
+      <p className="mt-6 text-xs text-slate-500 z-10">
+        ¿No tienes cuenta?{" "}
+        <Link
+          href="/register"
+          className="font-semibold text-[#323454] hover:text-[#181928] transition-colors inline-flex items-center gap-0.5"
+        >
+          Regístrate aquí
+          <span aria-hidden="true">›</span>
+        </Link>
+      </p>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gray-100">Cargando plataforma...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#F4F7FB] text-slate-500 text-sm">
+          Cargando plataforma...
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );
