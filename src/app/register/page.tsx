@@ -156,15 +156,7 @@ function RegisterContent() {
             <span className="font-bold tracking-wider text-[#323454] uppercase">
               REGISTRO SEGURO DE EMPLEADOS
             </span>
-            <p className="text-slate-500">
-              ¿Ya dispones de una cuenta?{" "}
-              <Link
-                href="/login"
-                className="font-semibold text-[#323454] hover:text-[#181928] transition-colors"
-              >
-                Iniciar sesión
-              </Link>
-            </p>
+
           </div>
 
           {/* Título y subtítulo */}
@@ -210,7 +202,7 @@ function RegisterContent() {
                   htmlFor="lastname"
                   className="block text-xs font-semibold text-slate-700 mb-1.5"
                 >
-                  Apellido
+                  Nombre de Usuario
                 </label>
                 <div className="relative">
                   <Briefcase className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -307,13 +299,12 @@ function RegisterContent() {
                 {[1, 2, 3, 4].map((level) => (
                   <div
                     key={level}
-                    className={`h-1 rounded-full transition-colors duration-300 ${
-                      passwordStrength >= level
-                        ? passwordStrength <= 2
-                          ? "bg-amber-400"
-                          : "bg-[#323454]"
-                        : "bg-slate-200"
-                    }`}
+                    className={`h-1 rounded-full transition-colors duration-300 ${passwordStrength >= level
+                      ? passwordStrength <= 2
+                        ? "bg-amber-400"
+                        : "bg-[#323454]"
+                      : "bg-slate-200"
+                      }`}
                   />
                 ))}
               </div>
@@ -389,15 +380,13 @@ function RegisterContent() {
               <button
                 type="submit"
                 disabled={isLoading || isSuccess}
-                className={`w-full py-3 px-4 rounded-xl text-white font-semibold text-sm transition-all flex items-center justify-center gap-2.5 ${
-                  isSuccess
-                    ? "bg-emerald-600 shadow-[0_8px_20px_rgba(5,150,105,0.25)]"
-                    : "bg-[#323454] hover:bg-[#181928] active:scale-[0.99] shadow-[0_8px_20px_rgba(50,52,84,0.25)]"
-                } ${
-                  isLoading || isSuccess
+                className={`w-full py-3 px-4 rounded-xl text-white font-semibold text-sm transition-all flex items-center justify-center gap-2.5 ${isSuccess
+                  ? "bg-emerald-600 shadow-[0_8px_20px_rgba(5,150,105,0.25)]"
+                  : "bg-[#323454] hover:bg-[#181928] active:scale-[0.99] shadow-[0_8px_20px_rgba(50,52,84,0.25)]"
+                  } ${isLoading || isSuccess
                     ? "opacity-90 cursor-not-allowed"
                     : "cursor-pointer"
-                }`}
+                  }`}
               >
                 {isLoading ? (
                   <>
@@ -416,15 +405,23 @@ function RegisterContent() {
                   </>
                 )}
               </button>
+              <p className="mt-6 text-xs text-slate-500 z-10 text-center">
+                ¿Ya dispones de una cuenta?{" "}
+                <Link
+                  href="/login"
+                  className="font-semibold text-[#323454] hover:text-[#181928] transition-colors inline-flex items-center gap-0.5"
+                >
+                  Iniciar sesión
+                  <span aria-hidden="true">›</span>
+                </Link>
+              </p>
             </div>
           </form>
         </div>
       </div>
 
-      {/* Ícono de escudo inferior */}
-      <div className="mt-6 text-[#323454]/50 z-10">
-        <ShieldCheck className="w-4 h-4" />
-      </div>
+
+
     </div>
   );
 }
@@ -433,9 +430,8 @@ function RegisterContent() {
 function RequirementItem({ met, text }: { met: boolean; text: string }) {
   return (
     <div
-      className={`flex items-center gap-2 transition-colors ${
-        met ? "text-[#323454] font-medium" : "text-slate-400"
-      }`}
+      className={`flex items-center gap-2 transition-colors ${met ? "text-[#323454] font-medium" : "text-slate-400"
+        }`}
     >
       {met ? (
         <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-[#323454]" />
