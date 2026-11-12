@@ -18,7 +18,7 @@ function isTecnicoOrAdmin(roleStr: string): boolean {
     norm === "tecnico" ||
     norm === "admin" ||
     norm === "administrador" ||
-    norm.includes("tecnic") ||
+    norm.includes("tecnico") ||
     norm.includes("admin")
   );
 }
@@ -31,9 +31,9 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { email, password, name } = body;
+    const { email, password, name, username } = body;
 
-    if (!email || !password || !name) {
+    if (!email || !password || !name || !username) {
       return NextResponse.json(
         { estado: "Error", mensaje: "Todos los campos son obligatorios" },
         { status: 400 },
@@ -46,7 +46,8 @@ export async function POST(request: Request) {
       options: {
         data: {
           name: name,
-          role: "user",
+          username: username,
+          role: "usuario",
         },
       },
     });
@@ -109,8 +110,9 @@ export async function POST(request: Request) {
         await clientForInsert.from("User").upsert({
           id: data.user.id,
           email: email,
+          username: username,
           name: name,
-          role: "user",
+          role: "usuario",
         });
       } catch (err) {
         console.error("Error al registrar en tabla users:", err);
@@ -119,7 +121,7 @@ export async function POST(request: Request) {
 
     // Lógica de inicio de sesión y gestión de cookies
     if (data.session) {
-      let rawRole = "user";
+      let rawRole = "usuario";
 
       // Obtener rol registrado en base de datos o metadatos
       const authClient = createClient(supabaseUrl, supabaseKey, {
@@ -132,7 +134,7 @@ export async function POST(request: Request) {
 
       try {
         const { data: dbUserAuth } = await authClient
-          .from("users")
+          .from("User")
           .select("*")
           .eq("id", data.user.id)
           .maybeSingle();

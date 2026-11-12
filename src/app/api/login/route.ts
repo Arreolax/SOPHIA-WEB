@@ -18,7 +18,7 @@ function isTecnicoOrAdmin(roleStr: string): boolean {
     norm === 'tecnico' ||
     norm === 'admin' ||
     norm === 'administrador' ||
-    norm.includes('tecnic') ||
+    norm.includes('tecnico') ||
     norm.includes('admin')
   );
 }

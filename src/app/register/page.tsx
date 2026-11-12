@@ -10,7 +10,7 @@ function RegisterContent() {
   const router = useRouter();
 
   const [nameValue, setNameValue] = useState("");
-  const [lastnameValue, setLastnameValue] = useState("");
+  const [usernameValue, setusernameValue] = useState("");
   const [emailValue, setEmailValue] = useState("");
   const [passwordValue, setPasswordValue] = useState("");
 
@@ -26,7 +26,7 @@ function RegisterContent() {
     setIsSuccess(false);
     setErrorMessage("");
     setNameValue("");
-    setLastnameValue("");
+    setusernameValue("");
     setEmailValue("");
     setPasswordValue("");
   }, []);
@@ -54,7 +54,6 @@ function RegisterContent() {
     setIsSuccess(false);
 
     try {
-      const fullName = `${nameValue.trim()} ${lastnameValue.trim()}`.trim();
 
       const respuesta = await fetch("/api/register/", {
         method: "POST",
@@ -62,7 +61,8 @@ function RegisterContent() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ 
-          name: fullName, 
+          name: nameValue, 
+          username: usernameValue,
           email: emailValue, 
           password: passwordValue 
         }),
@@ -109,8 +109,8 @@ function RegisterContent() {
         style={{ clipPath: "polygon(0 0, 100% 0, 100% 45%, 0 45%)" }}
       ></div>
 
-      <div className="relative bg-[#323454] w-10/12 md:w-[425px] p-8 shadow-md text-center m-0">
-        <div className="relative bg-white w-full md:w-[360px] p-8 shadow-md text-center mx-auto">
+      <div className="relative bg-[#323454] w-10/12 md:w-106.25 p-8 shadow-md text-center m-0">
+        <div className="relative bg-white w-full md:w-90 p-8 shadow-md text-center mx-auto">
           <div className="flex justify-center mb-6 relative w-full h-24">
             <Image
               src="/images/300x150.png"
@@ -143,11 +143,11 @@ function RegisterContent() {
                 <i className="fa fa-id-card text-black mr-3"></i>
                 <input
                   type="text"
-                  id="lastname"
-                  name="lastname"
-                  value={lastnameValue}
-                  onChange={(e) => setLastnameValue(e.target.value)}
-                  placeholder="Apellido"
+                  id="username"
+                  name="username"
+                  value={usernameValue}
+                  onChange={(e) => setusernameValue(e.target.value)}
+                  placeholder="Usuario"
                   className="bg-transparent outline-none w-full text-black"
                   required
                   disabled={isLoading || isSuccess}

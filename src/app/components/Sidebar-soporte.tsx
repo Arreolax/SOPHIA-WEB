@@ -18,11 +18,11 @@ import {
 import Image from "next/image";
 
 const navItems = [
-  { name: "Dashboard", href: "/soporte/dashboard", icon: LayoutDashboard },
-  { name: "Mis Tickets", href: "/soporte/ticketss/consultarMT", icon: Ticket },
-  { name: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
-  { name: "Reportes", href: "/soporte/reports", icon: PieChart },
-  { name: "Menu del Soporte", href: "/soporte", icon: UserCheck}
+  { username: "Dashboard", href: "/soporte/dashboard", icon: LayoutDashboard },
+  { username: "Mis Tickets", href: "/soporte/tickets/consultarMT", icon: Ticket },
+  { username: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
+  { username: "Reportes", href: "/soporte/reports", icon: PieChart },
+  { username: "Menu del Soporte", href: "/soporte", icon: UserCheck}
 ];
 
 const renderRoleIcon = (role: string) => {
@@ -36,8 +36,7 @@ export default function Sidebar() {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [userInfo, setUserInfo] = useState({
-    name: "Cargando...",
-    lastname: "",
+    username: "",
     role: "",
   });
   const [notification, setNotification] = useState({
@@ -61,16 +60,15 @@ export default function Sidebar() {
         if (response.ok) {
           const data = await response.json();
           setUserInfo({
-            name: data.name,
-            lastname: data.lastname,
+            username: data.username,
             role: data.role,
           });
         } else {
-          setUserInfo({ name: "Invitado", lastname: "", role: "" });
+          setUserInfo({ username: "Invitado", role: "" });
         }
       } catch (error) {
         console.error("Error obteniendo usuario:", error);
-        setUserInfo({ name: "Invitado", lastname: "", role: "" });
+        setUserInfo({ username: "Invitado", role: "" });
       }
     };
 
@@ -104,7 +102,7 @@ export default function Sidebar() {
             const isActive = pathname === item.href;
             return (
               <Link
-                key={item.name}
+                key={item.username}
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
@@ -113,7 +111,7 @@ export default function Sidebar() {
                 }`}
               >
                 <item.icon className="w-5 h-5" />
-                <span>{item.name}</span>
+                <span>{item.username}</span>
               </Link>
             );
           })}
@@ -187,15 +185,15 @@ export default function Sidebar() {
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-400 relative">
                 <Image
                   src="/images/avatar.jpg"
-                  alt={userInfo.name}
+                  alt={userInfo.username}
                   fill
                   sizes="32px"
                   className="object-cover"
                 />
               </div>
               <div className="flex flex-col">
-                <span className="text-[19px] font-medium truncate max-w-[140px] capitalize">
-                  {userInfo.name} {userInfo.lastname}
+                <span className="text-[19px] font-medium truncate max-w-35 capitalize italic">
+                  {userInfo.username || "Cargando..."}
                 </span>
                 <div className="flex items-center gap-1.5 text-xs text-gray-400 capitalize mt-0.5">
                 {renderRoleIcon(userInfo.role)}

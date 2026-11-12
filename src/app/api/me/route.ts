@@ -62,11 +62,11 @@ export async function GET() {
     user.email?.split("@")[0] ||
     "Usuario";
 
-  const lastname =
-    dbUser?.lastname ||
+  const username =
+    dbUser?.username ||
     dbUser?.last_name ||
     dbUser?.apellido ||
-    user.user_metadata?.lastname ||
+    user.user_metadata?.username ||
     user.user_metadata?.last_name ||
     user.user_metadata?.apellido ||
     "";
@@ -118,7 +118,7 @@ export async function GET() {
   return NextResponse.json({
     id: getProfileValue(dbUser?.employee_id, dbUser?.id_empleado) || user.id,
     name,
-    lastname,
+    username,
     role,
     email: user.email,
     position,
