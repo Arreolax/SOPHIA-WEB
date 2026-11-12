@@ -1,250 +1,462 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Sparkles,
-  Headset,
-  MonitorCog,
-  Clock,
-  Bot,
-  Activity,
-  ListChecks,
-  Wrench,
-  Scale,
-  Database,
-  Radio,
+  User,
+  Briefcase,
+  AtSign,
+  Lock,
+  Eye,
+  EyeOff,
+  RotateCcw,
+  ShieldCheck,
   CheckCircle2,
+  Circle,
+  AlertTriangle,
   Loader2,
-  AlertCircle,
+  Check,
 } from "lucide-react";
 
+function RegisterContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
-export default function Home() {
-  const [resultado, setResultado] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+  const [lastnameValue, setLastnameValue] = useState("");
+  const [emailValue, setEmailValue] = useState("");
+  const [passwordValue, setPasswordValue] = useState("");
+  const [confirmPasswordValue, setConfirmPasswordValue] = useState("");
 
-  const probarConexion = async () => {
-    setCargando(true);
-    setResultado(null);
-    try {
-      const respuesta = await fetch("/api/test");
-      const datos = await respuesta.json();
-      setResultado(
-        `${datos.estado} ${datos.mensaje ? "- " + datos.mensaje : ""}`
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [capsWarning, setCapsWarning] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  // Reglas de validación de contraseña
+  const rules = {
+    minLength: passwordValue.length >= 8,
+    hasUppercase: /[A-Z]/.test(passwordValue),
+    hasNumber: /[0-9]/.test(passwordValue),
+    hasSpecialChar: /[@#$%^&*(),.?":{}|<>]/.test(passwordValue),
+  };
+
+  // Cálculo de fuerza de contraseña (0 a 4)
+  const passwordStrength = Object.values(rules).filter(Boolean).length;
+
+  useEffect(() => {
+    setIsLoading(false);
+    setIsSuccess(false);
+    setErrorMessage("");
+    setNameValue("");
+    setLastnameValue("");
+    setEmailValue("");
+    setPasswordValue("");
+    setConfirmPasswordValue("");
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get("session") === "expired") {
+      setErrorMessage(
+        "Sesión no válida o expirada. Por favor regístrate o inicia sesión."
       );
-    } catch (error) {
-      setResultado("Error 🔴 - No se pudo conectar con la API local.");
     }
-    setCargando(false);
+  }, [searchParams]);
+
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.getModifierState("CapsLock")) {
+      setCapsWarning(true);
+    } else {
+      setCapsWarning(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setErrorMessage("");
+
+    // Validación de coincidencia de contraseñas
+    if (passwordValue !== confirmPasswordValue) {
+      setErrorMessage("Las contraseñas no coinciden. Verifica ambos campos.");
+      return;
+    }
+
+    setIsLoading(true);
+    setIsSuccess(false);
+
+    try {
+      const fullName = `${nameValue.trim()} ${lastnameValue.trim()}`.trim();
+
+      const respuesta = await fetch("/api/register/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: fullName,
+          email: emailValue,
+          password: passwordValue,
+        }),
+      });
+
+      if (respuesta.ok) {
+        const data = await respuesta.json();
+        setIsLoading(false);
+        setIsSuccess(true);
+
+        const cleanRole = String(data.role || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+        const isTecnicoOrAdmin =
+          cleanRole === "tecnico" ||
+          cleanRole === "admin" ||
+          cleanRole.includes("tecnic") ||
+          cleanRole.includes("admin");
+        const targetUrl =
+          data.redirectTo ||
+          (isTecnicoOrAdmin ? "/portal/dashboard" : "/soporte/dashboard");
+
+        setTimeout(() => {
+          router.push(targetUrl);
+          router.refresh();
+        }, 800);
+      } else {
+        setIsLoading(false);
+        const errorData = await respuesta.json();
+        setErrorMessage(
+          errorData.mensaje || errorData.message || "Error en el registro."
+        );
+      }
+    } catch (error) {
+      setIsLoading(false);
+      setErrorMessage("Ocurrió un error al intentar conectarse al servidor.");
+    }
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#F4F7FB] text-slate-900 font-sans relative overflow-x-hidden flex flex-col">
-      {/* Efectos de luz difuminada de fondo */}
-      <div className="absolute top-[10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#323454]/10 blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-[5%] right-[-10%] w-[600px] h-[600px] rounded-full bg-indigo-200/30 blur-[140px] pointer-events-none" />
+    <div className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-hidden bg-[#F4F7FB] p-4 font-sans">
+      {/* Efectos de luz difuminada en el fondo con el tono #323454 */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#323454]/15 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-[#323454]/20 blur-[130px] pointer-events-none" />
 
+      {/* Tarjeta principal */}
+      <div className="w-full max-w-[540px] bg-white rounded-2xl shadow-[0_20px_50px_rgba(50,52,84,0.08)] relative overflow-hidden z-10 border border-slate-100">
+        {/* Borde superior con el azul antiguo (#323454) */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
 
-      {/* Barra de navegación superior */}
-      <header className="w-full bg-white/85 backdrop-blur-md border-b border-slate-100 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-[#1E233A]">SOPHIA Web</span>
-          </div>
-
-          {/* Únicos botones de navegación: Iniciar Sesión y Registrarse */}
-          <div className="flex items-center gap-3 sm:gap-4">
-            <Link
-              href="/login"
-              className="text-xs sm:text-sm font-medium text-slate-600 hover:text-[#323454] px-3 py-2 rounded-lg transition-colors"
-            >
-              Iniciar Sesión
-            </Link>
-            <Link
-              href="/register"
-              className="text-xs sm:text-sm font-semibold text-white bg-[#323454] hover:bg-[#181928] px-4 py-2 rounded-lg transition-all shadow-sm"
-            >
-              Registrarse
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {/* Contenido Principal */}
-      <main className="relative flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-12 sm:py-16 z-10 flex flex-col items-center">
-        {/* Badge superior */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-200/70 text-[#232946] text-[10px] sm:text-[11px] font-bold tracking-wider uppercase mb-5">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#232946]" />
-          <span>SOPHIA • IT OPERATIONS & INTELLIGENCE ECOSYSTEM</span>
-        </div>
-
-        {/* Título Principal */}
-        <h1 className="text-3xl sm:text-4xl md:text-[42px] font-extrabold text-center tracking-tight text-[#1E233A] leading-tight mb-2">
-          Support OPerations Human IA{" "}
-          <span className="font-normal text-slate-500">(SOPHIA)</span>
-        </h1>
-
-        {/* Subtítulo */}
-        <p className="text-xs sm:text-sm font-medium text-slate-500 text-center mb-8">
-          Next-Gen IT Ticketing & Cognitive Service Desk
-        </p>
-
-        {/* Tarjeta descriptiva central (con línea azul arriba) */}
-        <div className="w-full max-w-3xl bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden mb-10">
-          <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
-          <div className="p-5 sm:p-6 flex items-start gap-4">
-            <div className="w-9 h-9 rounded-xl bg-slate-100 text-[#232946] flex items-center justify-center shrink-0 mt-0.5">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed">
-              Una aplicación que proporciona un portal para dos tipos de usuarios —{" "}
-              <strong className="font-semibold text-slate-800">
-                Técnicos/Administradores
-              </strong>{" "}
-              y <strong className="font-semibold text-slate-800">Usuarios</strong> —
-              con autenticación respaldada por Supabase. La plataforma incluye
-              tableros separados para solicitantes y personal de soporte, un flujo
-              integral de registro, gestión de sesiones seguras mediante cookies y
-              un conjunto de rutas API optimizadas.
+        <div className="p-8 sm:p-10">
+          {/* Encabezado superior */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs mb-3">
+            <span className="font-bold tracking-wider text-[#323454] uppercase">
+              REGISTRO SEGURO DE EMPLEADOS
+            </span>
+            <p className="text-slate-500">
+              ¿Ya dispones de una cuenta?{" "}
+              <Link
+                href="/login"
+                className="font-semibold text-[#323454] hover:text-[#181928] transition-colors"
+              >
+                Iniciar sesión
+              </Link>
             </p>
           </div>
-        </div>
 
-        {/* Grid de dos columnas: Rectángulos informativos (no cliqueables y con línea azul arriba) */}
-        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Rectángulo 1: Portal de Usuarios */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[240px]">
-            <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
-            <div className="p-7 sm:p-8 flex-1 flex flex-col justify-between">
+          {/* Título y subtítulo */}
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">
+            Crear Cuenta
+          </h1>
+          <p className="text-sm text-slate-500 leading-relaxed mb-6">
+            Regístrate para gestionar tus tickets y solicitudes de soporte
+            técnico con tu identidad de red empresarial.
+          </p>
+
+          <hr className="border-slate-100 mb-6" />
+
+          {/* Formulario */}
+          <form id="registerForm" onSubmit={handleSubmit} className="space-y-5">
+            {/* Fila: Nombre y Apellido */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <div className="w-11 h-11 rounded-xl bg-slate-100 text-[#232946] flex items-center justify-center mb-5">
-                  <Headset className="w-5 h-5" />
+                <label
+                  htmlFor="name"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Nombre
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={nameValue}
+                    onChange={(e) => setNameValue(e.target.value)}
+                    placeholder="Ej. Alejandro"
+                    disabled={isLoading || isSuccess}
+                    className="w-full pl-10 pr-3.5 py-2.5 text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-[#323454] focus:ring-2 focus:ring-[#323454]/15 transition-all placeholder:text-slate-400 disabled:opacity-60"
+                    required
+                  />
                 </div>
-
-                <h2 className="text-lg font-bold text-[#1E233A] mb-2">
-                  Portal de Usuarios
-                </h2>
-
-                <p className="text-xs sm:text-[13px] text-slate-500 leading-relaxed mb-6">
-                  Crea tickets de soporte, consulta el estado de tus solicitudes
-                  en tiempo real y recibe asistencia inmediata con el agente de IA.
-                </p>
               </div>
 
-              {/* Etiquetas inferiores */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
-                  <Clock className="w-3 h-3 text-slate-500" />
-                  Autoservicio 24/7
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
-                  <Bot className="w-3 h-3 text-slate-500" />
-                  Asistente IA Copilot
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
-                  <Activity className="w-3 h-3 text-slate-500" />
-                  Seguimiento en vivo
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Rectángulo 2: Consola de Técnicos & Admin */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[240px]">
-            <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
-            <div className="p-7 sm:p-8 flex-1 flex flex-col justify-between">
               <div>
-                <div className="w-11 h-11 rounded-xl bg-[#232946] text-white flex items-center justify-center mb-5">
-                  <MonitorCog className="w-5 h-5" />
+                <label
+                  htmlFor="lastname"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Apellido
+                </label>
+                <div className="relative">
+                  <Briefcase className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    id="lastname"
+                    name="lastname"
+                    value={lastnameValue}
+                    onChange={(e) => setLastnameValue(e.target.value)}
+                    placeholder="Ej. Morales"
+                    disabled={isLoading || isSuccess}
+                    className="w-full pl-10 pr-3.5 py-2.5 text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-[#323454] focus:ring-2 focus:ring-[#323454]/15 transition-all placeholder:text-slate-400 disabled:opacity-60"
+                    required
+                  />
                 </div>
-
-                <h2 className="text-lg font-bold text-[#1E233A] mb-2">
-                  Consola de Técnicos & Admin
-                </h2>
-
-                <p className="text-xs sm:text-[13px] text-slate-500 leading-relaxed mb-6">
-                  Gestión y resolución de incidentes IT, asistencia técnica
-                  potenciada por IA, runbooks interactivos y balance de cargas
-                  para supervisores.
-                </p>
-              </div>
-
-              {/* Etiquetas inferiores */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
-                  <ListChecks className="w-3 h-3 text-slate-500" />
-                  Cola de Tickets L1/L3
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
-                  <Wrench className="w-3 h-3 text-slate-500" />
-                  AI Copilot ITIL
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
-                  <Scale className="w-3 h-3 text-slate-500" />
-                  Balance de Cargas
-                </span>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Rectángulo inferior: Diagnóstico de Infraestructura y Base de Datos (con línea azul arriba) */}
-        <div className="w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden">
-          <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
-          <div className="p-6 sm:p-8 flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="max-w-md">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Database className="w-4 h-4 text-[#232946]" />
-                  <h3 className="text-sm font-bold text-[#1E233A]">
-                    Diagnóstico de Infraestructura y Base de Datos
-                  </h3>
-                </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Verificación de conectividad en tiempo real con Supabase (Auth,
-                  PostgreSQL, RLS & Edge Functions).
-                </p>
-              </div>
-
-              {/* Tercer botón único: Probar Base de Datos */}
-              <button
-                type="button"
-                onClick={probarConexion}
-                disabled={cargando}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-[#232946] text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed self-end sm:self-center shrink-0"
+            {/* Correo Electrónico */}
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-xs font-semibold text-slate-700 mb-1.5"
               >
-                {cargando ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Radio className="w-4 h-4" />
-                )}
-                <span>
-                  {cargando ? "Conectando..." : "Probar Base de Datos"}
-                </span>
-              </button>
+                Correo Electrónico
+              </label>
+              <div className="relative">
+                <AtSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={emailValue}
+                  onChange={(e) => setEmailValue(e.target.value)}
+                  placeholder="nombre.apellido@empresa.com"
+                  disabled={isLoading || isSuccess}
+                  className="w-full pl-10 pr-3.5 py-2.5 text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-[#323454] focus:ring-2 focus:ring-[#323454]/15 transition-all placeholder:text-slate-400 disabled:opacity-60"
+                  required
+                />
+              </div>
             </div>
 
-            {/* Resultado de la prueba de /api/test */}
-            {resultado && (
-              <div
-                className={`p-3.5 rounded-xl text-xs font-medium flex items-center gap-2 transition-colors ${
-                  resultado.includes("Exitosa")
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "bg-red-50 text-red-700 border border-red-200"
-                }`}
+            {/* Contraseña */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="password"
+                  className="text-xs font-semibold text-slate-700"
+                >
+                  Contraseña
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  Introduce tu clave
+                </span>
+              </div>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  name="password"
+                  value={passwordValue}
+                  onChange={(e) => setPasswordValue(e.target.value)}
+                  onKeyUp={handleKeyUp}
+                  placeholder="••••••••••••"
+                  disabled={isLoading || isSuccess}
+                  className="w-full pl-10 pr-10 py-2.5 text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-[#323454] focus:ring-2 focus:ring-[#323454]/15 transition-all placeholder:text-slate-400 tracking-wider disabled:opacity-60"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading || isSuccess}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+
+              {/* Advertencia de Bloq Mayús */}
+              {capsWarning && (
+                <div className="text-xs text-amber-600 flex items-center gap-1.5 mt-2 font-medium">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Bloq Mayús activado</span>
+                </div>
+              )}
+
+              {/* Barra de progreso de seguridad (4 segmentos) */}
+              <div className="grid grid-cols-4 gap-2 mt-3">
+                {[1, 2, 3, 4].map((level) => (
+                  <div
+                    key={level}
+                    className={`h-1 rounded-full transition-colors duration-300 ${
+                      passwordStrength >= level
+                        ? passwordStrength <= 2
+                          ? "bg-amber-400"
+                          : "bg-[#323454]"
+                        : "bg-slate-200"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Checklist de requisitos */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 mt-3 text-xs">
+                <RequirementItem
+                  met={rules.minLength}
+                  text="Mínimo 8 caracteres"
+                />
+                <RequirementItem
+                  met={rules.hasUppercase}
+                  text="Una letra mayúscula"
+                />
+                <RequirementItem
+                  met={rules.hasNumber}
+                  text="Al menos un número"
+                />
+                <RequirementItem
+                  met={rules.hasSpecialChar}
+                  text="Un carácter especial (@#$%)"
+                />
+              </div>
+            </div>
+
+            {/* Confirmar Contraseña */}
+            <div>
+              <label
+                htmlFor="confirmPassword"
+                className="block text-xs font-semibold text-slate-700 mb-1.5"
               >
-                {resultado.includes("Exitosa") ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-                )}
-                <span>{resultado}</span>
+                Confirmar Contraseña
+              </label>
+              <div className="relative">
+                <RotateCcw className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  value={confirmPasswordValue}
+                  onChange={(e) => setConfirmPasswordValue(e.target.value)}
+                  onKeyUp={handleKeyUp}
+                  placeholder="••••••••••••"
+                  disabled={isLoading || isSuccess}
+                  className="w-full pl-10 pr-10 py-2.5 text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-[#323454] focus:ring-2 focus:ring-[#323454]/15 transition-all placeholder:text-slate-400 tracking-wider disabled:opacity-60"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={isLoading || isSuccess}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Mensaje de Error */}
+            {errorMessage && (
+              <div className="text-xs text-red-600 font-semibold rounded-xl p-3 bg-red-50 border border-red-100 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+                <span>{errorMessage}</span>
               </div>
             )}
-          </div>
+
+            {/* Botón Principal con el azul #323454 y hover #181928 */}
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={isLoading || isSuccess}
+                className={`w-full py-3 px-4 rounded-xl text-white font-semibold text-sm transition-all flex items-center justify-center gap-2.5 ${
+                  isSuccess
+                    ? "bg-emerald-600 shadow-[0_8px_20px_rgba(5,150,105,0.25)]"
+                    : "bg-[#323454] hover:bg-[#181928] active:scale-[0.99] shadow-[0_8px_20px_rgba(50,52,84,0.25)]"
+                } ${
+                  isLoading || isSuccess
+                    ? "opacity-90 cursor-not-allowed"
+                    : "cursor-pointer"
+                }`}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Procesando...</span>
+                  </>
+                ) : isSuccess ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>¡Registrado!</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Registrar Cuenta</span>
+
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
-      </main>
+      </div>
+
+      {/* Ícono de escudo inferior */}
+      <div className="mt-6 text-[#323454]/50 z-10">
+        <ShieldCheck className="w-4 h-4" />
+      </div>
     </div>
+  );
+}
+
+// Subcomponente para los ítems de validación
+function RequirementItem({ met, text }: { met: boolean; text: string }) {
+  return (
+    <div
+      className={`flex items-center gap-2 transition-colors ${
+        met ? "text-[#323454] font-medium" : "text-slate-400"
+      }`}
+    >
+      {met ? (
+        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-[#323454]" />
+      ) : (
+        <Circle className="w-3.5 h-3.5 shrink-0 text-slate-300" />
+      )}
+      <span>{text}</span>
+    </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#F4F7FB] text-slate-500 text-sm">
+          Cargando plataforma...
+        </div>
+      }
+    >
+      <RegisterContent />
+    </Suspense>
   );
 }
