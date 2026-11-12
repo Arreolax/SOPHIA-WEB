@@ -5,26 +5,27 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   User,
-  Briefcase,
   AtSign,
   Lock,
   Eye,
   EyeOff,
   RotateCcw,
-  ShieldCheck,
   CheckCircle2,
   Circle,
   AlertTriangle,
   Loader2,
   Check,
+  Mail,
+  ArrowLeft
 } from "lucide-react";
+
 
 function RegisterContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const [nameValue, setNameValue] = useState("");
-  const [lastnameValue, setLastnameValue] = useState("");
+  const [usernameValue, setusernameValue] = useState("");
   const [emailValue, setEmailValue] = useState("");
   const [passwordValue, setPasswordValue] = useState("");
   const [confirmPasswordValue, setConfirmPasswordValue] = useState("");
@@ -53,7 +54,7 @@ function RegisterContent() {
     setIsSuccess(false);
     setErrorMessage("");
     setNameValue("");
-    setLastnameValue("");
+    setusernameValue("");
     setEmailValue("");
     setPasswordValue("");
     setConfirmPasswordValue("");
@@ -89,7 +90,6 @@ function RegisterContent() {
     setIsSuccess(false);
 
     try {
-      const fullName = `${nameValue.trim()} ${lastnameValue.trim()}`.trim();
 
       const respuesta = await fetch("/api/register/", {
         method: "POST",
@@ -97,7 +97,8 @@ function RegisterContent() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: fullName,
+          name: nameValue,
+          username: usernameValue,
           email: emailValue,
           password: passwordValue,
         }),
@@ -141,32 +142,33 @@ function RegisterContent() {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-hidden bg-[#F4F7FB] p-4 font-sans">
-      {/* Efectos de luz difuminada en el fondo con el tono #323454 */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#323454]/15 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-[#323454]/20 blur-[130px] pointer-events-none" />
 
-      {/* Tarjeta principal */}
-      <div className="w-full max-w-[540px] bg-white rounded-2xl shadow-[0_20px_50px_rgba(50,52,84,0.08)] relative overflow-hidden z-10 border border-slate-100">
-        {/* Borde superior con el azul antiguo (#323454) */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+      <Link
+        href="/"
+        className="absolute top-6 left-6 z-20 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#323454] transition-colors group"
+      >
+        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+        <span>Volver al inicio</span>
+      </Link>
+
+      <div className="absolute top-[-10%] left-[-10%] w-125 h-125 rounded-full bg-[#323454]/15 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-150 h-150 rounded-full bg-[#323454]/20 blur-[130px] pointer-events-none" />
+
+      <div className="text-center mb-6 z-10">
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-1.5">
+          Crear Cuenta
+        </h1>
+        <p className="text-sm text-slate-500">
+          Regístrate para gestionar tus tickets y solicitudes de soporte
+          técnico con tu identidad de red empresarial.
+        </p>
+      </div>
+
+      <div className="w-full max-w-135 bg-white rounded-2xl shadow-[0_20px_50px_rgba(50,52,84,0.08)] relative overflow-hidden z-10 border border-slate-100">
+
+        <div className="h-1.5 w-full bg-linear-to-r from-[#323454] via-[#454873] to-[#323454]" />
 
         <div className="p-8 sm:p-10">
-          {/* Encabezado superior */}
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs mb-3">
-            <span className="font-bold tracking-wider text-[#323454] uppercase">
-              REGISTRO SEGURO DE EMPLEADOS
-            </span>
-
-          </div>
-
-          {/* Título y subtítulo */}
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">
-            Crear Cuenta
-          </h1>
-          <p className="text-sm text-slate-500 leading-relaxed mb-6">
-            Regístrate para gestionar tus tickets y solicitudes de soporte
-            técnico con tu identidad de red empresarial.
-          </p>
 
           <hr className="border-slate-100 mb-6" />
 
@@ -199,20 +201,20 @@ function RegisterContent() {
 
               <div>
                 <label
-                  htmlFor="lastname"
+                  htmlFor="username"
                   className="block text-xs font-semibold text-slate-700 mb-1.5"
                 >
                   Nombre de Usuario
                 </label>
                 <div className="relative">
-                  <Briefcase className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <AtSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    id="lastname"
-                    name="lastname"
-                    value={lastnameValue}
-                    onChange={(e) => setLastnameValue(e.target.value)}
-                    placeholder="Ej. Morales"
+                    id="username"
+                    name="username"
+                    value={usernameValue}
+                    onChange={(e) => setusernameValue(e.target.value)}
+                    placeholder="@ejemplo"
                     disabled={isLoading || isSuccess}
                     className="w-full pl-10 pr-3.5 py-2.5 text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-[#323454] focus:ring-2 focus:ring-[#323454]/15 transition-all placeholder:text-slate-400 disabled:opacity-60"
                     required
@@ -230,7 +232,7 @@ function RegisterContent() {
                 Correo Electrónico
               </label>
               <div className="relative">
-                <AtSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
                   id="email"
@@ -405,20 +407,21 @@ function RegisterContent() {
                   </>
                 )}
               </button>
-              <p className="mt-6 text-xs text-slate-500 z-10 text-center">
-                ¿Ya dispones de una cuenta?{" "}
-                <Link
-                  href="/login"
-                  className="font-semibold text-[#323454] hover:text-[#181928] transition-colors inline-flex items-center gap-0.5"
-                >
-                  Iniciar sesión
-                  <span aria-hidden="true">›</span>
-                </Link>
-              </p>
             </div>
           </form>
         </div>
       </div>
+
+      <p className="mt-6 text-xs text-slate-500 z-10">
+        ¿Ya dispones de una cuenta?{" "}
+        <Link
+          href="/login"
+          className="font-semibold text-[#323454] hover:text-[#181928] transition-colors inline-flex items-center gap-0.5"
+        >
+          Iniciar sesión
+          <span aria-hidden="true">›</span>
+        </Link>
+      </p>
 
 
 

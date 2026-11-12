@@ -192,7 +192,7 @@ export default function Sidebar() {
                 />
               </div>
               <div className="flex flex-col">
-                <span className="text-[19px] font-medium truncate max-w-35 capitalize italic">
+                <span className="text-[19px] font-medium truncate max-w-35 italic">
                   {userInfo.username || "Cargando..."}
                 </span>
                 <div className="flex items-center gap-1.5 text-xs text-gray-400 capitalize mt-0.5">

@@ -12,39 +12,17 @@ import {
   ListChecks,
   Wrench,
   Scale,
-  Database,
-  Radio,
-  CheckCircle2,
-  Loader2,
-  AlertCircle,
 } from "lucide-react";
 
 import { FallingLeavesWrapper } from "./components/FallingLeavesWrapper";
 
 export default function Home() {
-  const [resultado, setResultado] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(false);
-
-  const probarConexion = async () => {
-    setCargando(true);
-    setResultado(null);
-    try {
-      const respuesta = await fetch("/api/test");
-      const datos = await respuesta.json();
-      setResultado(
-        `${datos.estado} ${datos.mensaje ? "- " + datos.mensaje : ""}`
-      );
-    } catch (error) {
-      setResultado("Error 🔴 - No se pudo conectar con la API local.");
-    }
-    setCargando(false);
-  };
 
   return (
     <div className="min-h-screen w-full bg-[#F4F7FB] text-slate-900 font-sans relative overflow-x-hidden flex flex-col">
       {/* Efectos de luz difuminada de fondo */}
-      <div className="absolute top-[10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#323454]/10 blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-[5%] right-[-10%] w-[600px] h-[600px] rounded-full bg-indigo-200/30 blur-[140px] pointer-events-none" />
+      <div className="absolute top-[10%] left-[-10%] w-125 h-125 rounded-full bg-[#323454]/10 blur-[130px] pointer-events-none" />
+      <div className="absolute bottom-[5%] right-[-10%] w-150 h-150 rounded-full bg-indigo-200/30 blur-[140px] pointer-events-none" />
 
       {/* Animación de hojas del código anterior */}
       <FallingLeavesWrapper
@@ -57,7 +35,7 @@ export default function Home() {
       />
 
       {/* Barra de navegación superior */}
-      <header className="w-full bg-white/85 backdrop-blur-md border-b border-slate-100 sticky top-0 z-20">
+      <header className="fixed w-full bg-white/85 backdrop-blur-md border-b border-slate-100  top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-[#1E233A]">SOPHIA Web</span>
@@ -81,8 +59,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Contenido Principal */}
-      <main className="relative flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-12 sm:py-16 z-10 flex flex-col items-center">
+      <main className="relative flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pt-28 sm:pt-32 z-10 flex flex-col items-center">
         {/* Badge superior */}
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-200/70 text-[#232946] text-[10px] sm:text-[11px] font-bold tracking-wider uppercase mb-5">
           <span className="w-1.5 h-1.5 rounded-full bg-[#232946]" />
@@ -91,13 +68,8 @@ export default function Home() {
 
         {/* Título Principal */}
         <h1 className="text-3xl sm:text-4xl md:text-[42px] font-extrabold text-center tracking-tight text-[#1E233A] leading-tight mb-2">
-          SOPHIA Web
+          SOPHIA WEB
         </h1>
-
-        {/* Subtítulo */}
-        <p className="text-xs sm:text-sm font-medium text-slate-500 text-center mb-8">
-          Next-Gen IT Ticketing & Cognitive Service Desk
-        </p>
 
         {/* Tarjeta descriptiva central (con línea azul arriba) */}
         <div className="w-full max-w-3xl bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden mb-10">
@@ -149,7 +121,7 @@ export default function Home() {
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
                   <Bot className="w-3 h-3 text-slate-500" />
-                  Asistente IA Copilot
+                  Asistente IA
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
                   <Activity className="w-3 h-3 text-slate-500" />
@@ -198,61 +170,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Rectángulo inferior: Diagnóstico de Infraestructura y Base de Datos (con línea azul arriba) */}
-        <div className="w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden">
-          <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
-          <div className="p-6 sm:p-8 flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="max-w-md">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Database className="w-4 h-4 text-[#232946]" />
-                  <h3 className="text-sm font-bold text-[#1E233A]">
-                    Diagnóstico de Infraestructura y Base de Datos
-                  </h3>
-                </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Verificación de conectividad en tiempo real con Supabase (Auth,
-                  PostgreSQL, RLS & Edge Functions).
-                </p>
-              </div>
-
-              {/* Tercer botón único: Probar Base de Datos */}
-              <button
-                type="button"
-                onClick={probarConexion}
-                disabled={cargando}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-[#232946] text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed self-end sm:self-center shrink-0"
-              >
-                {cargando ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Radio className="w-4 h-4" />
-                )}
-                <span>
-                  {cargando ? "Conectando..." : "Probar Base de Datos"}
-                </span>
-              </button>
-            </div>
-
-            {/* Resultado de la prueba de /api/test */}
-            {resultado && (
-              <div
-                className={`p-3.5 rounded-xl text-xs font-medium flex items-center gap-2 transition-colors ${
-                  resultado.includes("Exitosa")
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "bg-red-50 text-red-700 border border-red-200"
-                }`}
-              >
-                {resultado.includes("Exitosa") ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-                )}
-                <span>{resultado}</span>
-              </div>
-            )}
-          </div>
-        </div>
       </main>
     </div>
   );

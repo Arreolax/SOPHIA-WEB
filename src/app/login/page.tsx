@@ -4,15 +4,15 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  AtSign,
   Lock,
   Eye,
   EyeOff,
-  ShieldCheck,
   AlertTriangle,
   Loader2,
   Check,
   ArrowRight,
+  Mail,
+  ArrowLeft,
 } from "lucide-react";
 
 function LoginContent() {
@@ -99,8 +99,8 @@ function LoginContent() {
         const errorData = await respuesta.json();
         setErrorMessage(
           errorData.mensaje ||
-            errorData.message ||
-            "Credenciales incorrectas. Verifica tus datos."
+          errorData.message ||
+          "Credenciales incorrectas. Verifica tus datos."
         );
       }
     } catch (error) {
@@ -111,11 +111,18 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-hidden bg-[#F4F7FB] p-4 font-sans">
-      {/* Efectos de luz difuminada en el fondo con el tono #323454 */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#323454]/15 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-[#323454]/20 blur-[130px] pointer-events-none" />
 
-      {/* Encabezado externo centrado */}
+      <Link
+        href="/"
+        className="absolute top-6 left-6 z-20 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#323454] transition-colors group"
+      >
+        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+        <span>Volver al inicio</span>
+      </Link>
+      
+      <div className="absolute top-[-10%] left-[-10%] w-125 h-125 rounded-full bg-[#323454]/15 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-150 h-150 rounded-full bg-[#323454]/20 blur-[130px] pointer-events-none" />
+
       <div className="text-center mb-6 z-10">
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-1.5">
           Iniciar sesión
@@ -125,10 +132,8 @@ function LoginContent() {
         </p>
       </div>
 
-      {/* Tarjeta principal con el estilo del registro */}
-      <div className="w-full max-w-[460px] bg-white rounded-2xl shadow-[0_20px_50px_rgba(50,52,84,0.08)] relative overflow-hidden z-10 border border-slate-100">
-        {/* Borde superior con el azul #323454 */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+      <div className="w-full max-w-115 bg-white rounded-2xl shadow-[0_20px_50px_rgba(50,52,84,0.08)] relative overflow-hidden z-10 border border-slate-100">
+        <div className="h-1.5 w-full bg-linear-to-r from-[#323454] via-[#454873] to-[#323454]" />
 
         <div className="p-8 sm:p-10">
           {/* Separador superior con texto */}
@@ -150,7 +155,7 @@ function LoginContent() {
                 Usuario o Correo
               </label>
               <div className="relative">
-                <AtSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   id="email"
@@ -250,15 +255,13 @@ function LoginContent() {
               <button
                 type="submit"
                 disabled={isLoading || isSuccess}
-                className={`w-full py-3 px-4 rounded-xl text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
-                  isSuccess
+                className={`w-full py-3 px-4 rounded-xl text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 ${isSuccess
                     ? "bg-emerald-600 shadow-[0_8px_20px_rgba(5,150,105,0.25)]"
                     : "bg-[#323454] hover:bg-[#181928] active:scale-[0.99] shadow-[0_8px_20px_rgba(50,52,84,0.25)]"
-                } ${
-                  isLoading || isSuccess
+                  } ${isLoading || isSuccess
                     ? "opacity-90 cursor-not-allowed"
                     : "cursor-pointer"
-                }`}
+                  }`}
               >
                 {isLoading ? (
                   <>
