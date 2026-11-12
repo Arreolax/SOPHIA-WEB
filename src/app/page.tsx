@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import { FallingLeavesWrapper } from './components/FallingLeavesWrapper'; 
+
 export default function Home() {
   const [resultado, setResultado] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -22,12 +24,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-2">
           <span className="text-xl font-bold text-slate-800">SOPHIA Web</span>
         </div>
         <div className="flex items-center gap-3">
+          <button>
+            asa
+          </button>
           <Link 
             href="/login"
             className="text-slate-600 hover:text-blue-600 font-medium py-2 px-4 rounded-xl transition-colors"
@@ -44,8 +50,10 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-slate-100">
+      <main className="relative overflow-hidden flex-1 flex flex-col items-center justify-center p-6">
+        <FallingLeavesWrapper className="absolute inset-0 pointer-events-none" shapes={['maple', 'birch', 'oak', 'oval']} count={50} speed={2} wind={-5} size={100} />
+
+        <div className="relative z-10 max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-slate-100">
 
           <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">🤖</span>

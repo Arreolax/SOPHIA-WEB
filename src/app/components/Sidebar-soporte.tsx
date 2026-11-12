@@ -80,7 +80,7 @@ export default function Sidebar() {
   return (
     <>
       <div
-        className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-[100] flex items-center gap-2 px-6 py-3 rounded-lg shadow-xl transition-all duration-500 ${
+        className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-100 flex items-center gap-2 px-6 py-3 rounded-lg shadow-xl transition-all duration-500 ${
           notification.show
             ? "translate-y-0 opacity-100"
             : "-translate-y-24 opacity-0 pointer-events-none"

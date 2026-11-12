@@ -54,14 +54,15 @@ function RegisterContent() {
     setIsSuccess(false);
 
     try {
+      const fullName = `${nameValue.trim()} ${lastnameValue.trim()}`.trim();
+
       const respuesta = await fetch("/api/register/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ 
-          name: nameValue, 
-          lastname: lastnameValue, 
+          name: fullName, 
           email: emailValue, 
           password: passwordValue 
         }),

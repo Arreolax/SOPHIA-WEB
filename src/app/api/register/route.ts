@@ -31,9 +31,9 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { email, password, name, lastname } = body;
+    const { email, password, name } = body;
 
-    if (!email || !password || !name || !lastname) {
+    if (!email || !password || !name) {
       return NextResponse.json(
         { estado: "Error", mensaje: "Todos los campos son obligatorios" },
         { status: 400 },
@@ -46,7 +46,6 @@ export async function POST(request: Request) {
       options: {
         data: {
           name: name,
-          lastname: lastname,
           role: "user",
         },
       },
@@ -107,11 +106,10 @@ export async function POST(request: Request) {
             })
           : supabase;
 
-        await clientForInsert.from("users").upsert({
+        await clientForInsert.from("User").upsert({
           id: data.user.id,
           email: email,
           name: name,
-          lastname: lastname,
           role: "user",
         });
       } catch (err) {
