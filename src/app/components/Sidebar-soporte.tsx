@@ -19,7 +19,7 @@ import Image from "next/image";
 
 const navItems = [
   { username: "Dashboard", href: "/soporte/dashboard", icon: LayoutDashboard },
-  { username: "Mis Tickets", href: "/soporte/tickets/consultarMT", icon: Ticket },
+  { username: "Mis Tickets", href: "/portal/tickets/consultarMT", icon: Ticket },
   { username: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
   { username: "Reportes", href: "/soporte/reports", icon: PieChart },
   { username: "Menu del Soporte", href: "/soporte", icon: UserCheck}

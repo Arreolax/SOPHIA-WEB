@@ -533,7 +533,7 @@ export default function MisSolicitudesPage() {
             ))}
           </div>
           <Link
-            href="/soporte/ticketss/crear"
+            href="/portal/tickets/crear"
             className="flex items-center gap-2 rounded-xl bg-[#313652] px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-[#262a40]"
           >
             <Plus className="h-4 w-4" />

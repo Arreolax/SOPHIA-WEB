@@ -20,8 +20,8 @@ import Image from "next/image";
 
 const navItems = [
   { name: "Dashboard", href: "/portal/dashboard", icon: LayoutDashboard },
-  { name: "Mis Tickets", href: "/portal/ticketssTec", icon: Ticket },
-  { name: "Base de Conocimiento", href: "/portal/knowledge", icon: BookOpen },
+  { name: "Mis Tickets", href: "/soporte/ticketssTec", icon: Ticket },
+  { name: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
   { name: "Reportes", href: "/portal/reports", icon: PieChart },
   { name: "Menu del Portal", href: "/portal", icon: ShieldCheck}
 ];
@@ -44,6 +44,14 @@ const getNavHref = (name: string, href: string, role: string) => {
 
   if (name === "Mis Tickets" && normalizedRole.includes("admin")) {
     return "/portal/ticketssAdmi";
+  }
+
+  if (
+    name === "Mis Tickets" &&
+    normalizedRole &&
+    !normalizedRole.includes("tecnic")
+  ) {
+    return "/portal/tickets/consultarMT";
   }
 
   return href;
@@ -154,7 +162,7 @@ export default function Sidebar() {
                 </Link>
 
                 <Link
-                  href="/portal/profile"
+                  href="/soporte/profile"
                   className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
                   onClick={() => setIsMenuOpen(false)}
                 >

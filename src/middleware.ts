@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptRole, encryptRole } from "./app/lib/session";
 
-function normalizeRole(val: any): string {
+function normalizeRole(val: unknown): string {
   if (!val) return "";
   return String(val)
     .normalize("NFD")
@@ -157,14 +157,22 @@ export async function middleware(request: NextRequest) {
       : "/soporte/dashboard";
 
     let profileRedirect: string | null = null;
-    if (path === "/portal/profile" || path === "/portal/profile/") {
-      profileRedirect = isTecnicoOrAdmin
-        ? "/portal/profile/tecnico"
-        : "/portal/profile/usuario";
-    } else if (path === "/portal/profile/usuario" && isTecnicoOrAdmin) {
-      profileRedirect = "/portal/profile/tecnico";
-    } else if (path === "/portal/profile/tecnico" && !isTecnicoOrAdmin) {
-      profileRedirect = "/portal/profile/usuario";
+    const isPortalProfilePath =
+      path === "/portal/profile" || path === "/portal/profile/";
+    const isLegacyProfilePath =
+      path === "/portal/profile/usuario" || path === "/portal/profile/tecnico";
+    const isSupportProfilePath =
+      path === "/soporte/profile" || path === "/soporte/profile/";
+
+    if (isPortalProfilePath && isTecnicoOrAdmin) {
+      profileRedirect = "/soporte/profile";
+    } else if (isLegacyProfilePath) {
+      profileRedirect = isTecnicoOrAdmin ? "/soporte/profile" : "/portal/profile";
+    } else if (
+      isSupportProfilePath &&
+      !isTecnicoOrAdmin
+    ) {
+      profileRedirect = "/portal/profile";
     }
 
     if (profileRedirect) {
@@ -209,8 +217,21 @@ export async function middleware(request: NextRequest) {
     }
 
     const isProfileRoute =
-      path === "/portal/profile/usuario" || path === "/portal/profile/tecnico";
-    if (!isTecnicoOrAdmin && path.startsWith("/portal") && !isProfileRoute) {
+      path === "/portal/profile" ||
+      path === "/portal/profile/" ||
+      path === "/soporte/profile" ||
+      path === "/soporte/profile/";
+    const isUserTicketsRoute =
+      path === "/portal/tickets/consultarMT" ||
+      path === "/portal/tickets/consultarMT/" ||
+      path === "/portal/tickets/crear" ||
+      path === "/portal/tickets/crear/";
+    if (
+      !isTecnicoOrAdmin &&
+      path.startsWith("/portal") &&
+      !isProfileRoute &&
+      !isUserTicketsRoute
+    ) {
       const redirectSoporte = NextResponse.redirect(
         new URL("/soporte/dashboard", request.url),
       );
@@ -227,7 +248,17 @@ export async function middleware(request: NextRequest) {
       return redirectSoporte;
     }
 
-    if (isTecnicoOrAdmin && path.startsWith("/soporte")) {
+    const isSupportKnowledgePath =
+      path === "/soporte/knowledge" || path === "/soporte/knowledge/";
+    const isSupportTechnicianTicketsPath =
+      path === "/soporte/ticketssTec" || path === "/soporte/ticketssTec/";
+    if (
+      isTecnicoOrAdmin &&
+      path.startsWith("/soporte") &&
+      !isSupportProfilePath &&
+      !isSupportKnowledgePath &&
+      !isSupportTechnicianTicketsPath
+    ) {
       const redirectPortal = NextResponse.redirect(
         new URL("/portal/dashboard", request.url),
       );
