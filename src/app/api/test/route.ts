@@ -8,7 +8,7 @@ export async function GET() {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { data, error } = await supabase.from('users').select('*').limit(1);
+    const { data, error } = await supabase.from('User').select('*').limit(1);
 
     if (error && error.code === '42P01') {
       return NextResponse.json({

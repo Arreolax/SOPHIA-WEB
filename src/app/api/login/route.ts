@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { encryptRole } from '../../lib/session'; 
+import { encryptRole } from '../../lib/session';
 
 function normalizeRole(val: any): string {
   if (!val) return '';
@@ -47,16 +47,15 @@ export async function POST(request: Request) {
 
     if (error || !data.user || !data.session) {
       return NextResponse.json(
-        { 
-          estado: 'Error 🔴', 
-          mensaje: 'Usuario o contraseña incorrectos', 
-          detalle: error?.message 
+        {
+          estado: 'Error 🔴',
+          mensaje: 'Usuario o contraseña incorrectos',
+          detalle: error?.message,
         },
         { status: 401 }
       );
     }
 
-  
     const authClient = createClient(supabaseUrl, supabaseKey, {
       global: {
         headers: {
@@ -117,11 +116,17 @@ export async function POST(request: Request) {
       finalRole = cleanRole.includes('admin') ? 'admin' : 'tecnico';
     }
 
-    const redirectTo = hasTecnicoOrAdmin ? '/portal/dashboard' : '/soporte/dashboard';
+    const redirectTo =
+      finalRole === 'admin'
+        ? '/web'
+        : finalRole === 'tecnico'
+          ? '/soporte/dashboard'
+          : '/portal/dashboard';
 
     const encryptedRole = await encryptRole(finalRole);
-
     const cookieStore = await cookies();
+
+    // 1. Token de acceso actual
     cookieStore.set({
       name: 'sb-access-token',
       value: data.session.access_token,
@@ -129,12 +134,13 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7, 
+      maxAge: 60 * 60 * 24 * 7,
     });
 
+    // 2. Token de renovación para refrescar cuando expire el access_token
     cookieStore.set({
-      name: 'ur-token',
-      value: encryptedRole, 
+      name: 'sb-refresh-token',
+      value: data.session.refresh_token,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -142,14 +148,24 @@ export async function POST(request: Request) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    return NextResponse.json({ 
-      estado: 'Conexión Exitosa', 
+    // 3. Rol encriptado
+    cookieStore.set({
+      name: 'ur-token',
+      value: encryptedRole,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    return NextResponse.json({
+      estado: 'Conexión Exitosa',
       mensaje: 'Login correcto',
       data: data.user,
       role: finalRole,
-      redirectTo: redirectTo
+      redirectTo: redirectTo,
     });
-
   } catch (err: any) {
     return NextResponse.json(
       { estado: 'Error de Conexión 🔴', mensaje: err.message },

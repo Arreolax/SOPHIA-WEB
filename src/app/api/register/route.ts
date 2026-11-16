@@ -94,7 +94,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Insertar/actualizar en la tabla 'users' de la base de datos
     if (data.user) {
       try {
         const clientForInsert = data.session?.access_token
@@ -107,7 +106,7 @@ export async function POST(request: Request) {
             })
           : supabase;
 
-        await clientForInsert.from("User").upsert({
+        await clientForInsert.from("users").upsert({
           id: data.user.id,
           email: email,
           username: username,
@@ -119,11 +118,9 @@ export async function POST(request: Request) {
       }
     }
 
-    // Lógica de inicio de sesión y gestión de cookies
-    if (data.session) {
+    if (data.session && data.user) {
       let rawRole = "usuario";
 
-      // Obtener rol registrado en base de datos o metadatos
       const authClient = createClient(supabaseUrl, supabaseKey, {
         global: {
           headers: {
@@ -134,7 +131,7 @@ export async function POST(request: Request) {
 
       try {
         const { data: dbUserAuth } = await authClient
-          .from("User")
+          .from("users")
           .select("*")
           .eq("id", data.user.id)
           .maybeSingle();
@@ -154,14 +151,17 @@ export async function POST(request: Request) {
         finalRole = cleanRole.includes("admin") ? "admin" : "tecnico";
       }
 
-      const redirectTo = hasTecnicoOrAdmin
-        ? "/portal/dashboard"
-        : "/soporte/dashboard";
+      const redirectTo =
+        finalRole === "admin"
+          ? "/web"
+          : finalRole === "tecnico"
+            ? "/soporte/dashboard"
+            : "/portal/dashboard";
 
       const encryptedRole = await encryptRole(finalRole);
       const cookieStore = await cookies();
 
-      // Set cookie de token de acceso Supabase
+      // 1. Token de acceso
       cookieStore.set({
         name: "sb-access-token",
         value: data.session.access_token,
@@ -172,7 +172,18 @@ export async function POST(request: Request) {
         maxAge: 60 * 60 * 24 * 7,
       });
 
-      // Set cookie de rol encriptado (coincidiendo con login)
+      // 2. Token de renovación
+      cookieStore.set({
+        name: "sb-refresh-token",
+        value: data.session.refresh_token,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+
+      // 3. Rol encriptado
       cookieStore.set({
         name: "ur-token",
         value: encryptedRole,
@@ -192,7 +203,16 @@ export async function POST(request: Request) {
       });
     }
 
-    // En caso de que Supabase requiera confirmación por correo antes de iniciar sesión
+    if (data.session) {
+      return NextResponse.json(
+        {
+          estado: "Error",
+          mensaje: "No se pudo identificar al usuario registrado.",
+        },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({
       estado: "Registro Exitoso",
       mensaje: "Usuario registrado. Por favor verifica tu correo electrónico.",

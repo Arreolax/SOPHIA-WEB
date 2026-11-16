@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
+  AlertTriangle,
   Bell,
   CheckCircle2,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
   FileImage,
   Home,
   Laptop,
+  Loader2,
   MessagesSquare,
   Paperclip,
   Plus,
@@ -26,16 +28,24 @@ import {
   Search,
   Send,
   SlidersHorizontal,
+  XCircle,
 } from "lucide-react";
 
-/* ---------- Tipos y datos de ejemplo (luego los reemplazas por Supabase) ---------- */
+/* ---------- Tipos ---------- */
 type Estado = "esperando" | "abierto" | "resuelto";
 type Prioridad = "Alta" | "Media" | "Baja";
+
+type ModalState = {
+  open: boolean;
+  status: "loading" | "success" | "error";
+  title: string;
+  description: string;
+};
 
 type Mensaje = {
   id: string;
   autor: string;
-  rol: string; // "Tú (Solicitante)" o "Técnico de Soporte TI"
+  rol: string;
   esMio: boolean;
   hace: string;
   hora: string;
@@ -45,211 +55,431 @@ type Mensaje = {
 
 type Ticket = {
   id: string;
+  codigoCorto: string;
   titulo: string;
   resumen: string;
   prioridad: Prioridad;
   estado: Estado;
+  estadoRaw: string;
   confirmado: boolean;
   categoria: string;
+  subcategoria?: string | null;
+  tipo: string;
   enviado: string;
   hace: string;
-  minutos: number; // antigüedad, para ordenar
+  minutos: number;
+  tieneTecnicoAsignado: boolean;
   tecnico: { iniciales: string; nombre: string; rol: string };
   respuestaEstimada: string;
   turno: string;
   dispositivo: { nombre: string; so: string };
   mensajes: Mensaje[];
+  detalleCargado?: boolean;
 };
 
-const YO = { iniciales: "EM", nombre: "Elena Morales" };
-const DISPOSITIVO = { nombre: "Mi MacBook", so: "macOS Sonoma" };
+/* ---------- Helpers de mapeo DB -> UI ---------- */
+function obtenerIniciales(nombre?: string | null): string {
+  if (!nombre) return "ST";
+  const partes = nombre.trim().split(/\s+/);
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+}
 
-const mensajeInicial = (id: string, texto: string, hora: string, hace: string): Mensaje => ({
-  id: `${id}-m1`,
-  autor: YO.nombre,
-  rol: "Tú (Solicitante)",
-  esMio: true,
-  hace,
-  hora,
-  parrafos: [{ t: texto }],
-});
+function tiempoRelativo(fechaIso?: string | null): {
+  hace: string;
+  minutos: number;
+  enviado: string;
+  hora: string;
+} {
+  if (!fechaIso) {
+    return { hace: "Reciente", minutos: 0, enviado: "Enviado recientemente", hora: "" };
+  }
+  const fecha = new Date(fechaIso);
+  const diffMs = Math.max(0, Date.now() - fecha.getTime());
+  const mins = Math.floor(diffMs / 60000);
+  const hora = fecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  const fechaTexto = fecha.toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 
-const TICKETS_INICIALES: Ticket[] = [
-  {
-    id: "INC-2024-8921",
-    titulo: "No puedo acceder a la VPN corporativa desde casa",
-    resumen:
-      "Cisco AnyConnect reporta error de autenticación 403. Carlos te ha solicitado una confirmación.",
-    prioridad: "Alta",
-    estado: "esperando",
-    confirmado: false,
-    categoria: "Acceso Remoto y VPN",
-    enviado: "Enviado hoy a las 10:14 AM",
-    hace: "Hace 25 min",
-    minutos: 25,
-    tecnico: { iniciales: "CM", nombre: "Carlos Mendoza", rol: "Soporte TI Nivel 1" },
-    respuestaEstimada: "Hoy 14:00",
-    turno: "Turno de soporte prioritario",
-    dispositivo: DISPOSITIVO,
-    mensajes: [
-      {
-        id: "8921-m1",
-        autor: YO.nombre,
-        rol: "Tú (Solicitante)",
-        esMio: true,
-        hace: "Hoy",
-        hora: "10:14 AM",
-        parrafos: [
-          {
-            t: "Hola equipo. Desde esta mañana estoy intentando conectarme a la VPN de la compañía para acceder al servidor de archivos compartidos de Marketing. Al colocar mis credenciales en Cisco AnyConnect la autenticación se queda cargando y arroja el error `403-AUTH-TIMEOUT`. Ya intenté reiniciar el router y el portátil pero el fallo persiste.",
-          },
-        ],
-        adjunto: { nombre: "captura_error_vpn.png", detalle: "1.2 MB • Captura de pantalla" },
-      },
-      {
-        id: "8921-m2",
-        autor: "Carlos Mendoza",
-        rol: "Técnico de Soporte TI",
-        esMio: false,
-        hace: "Hace 25 min",
-        hora: "11:05 AM",
-        parrafos: [
-          { t: "Hola Elena, gracias por detallar el caso y compartir la captura." },
-          {
-            t: "Hemos revisado los registros de acceso y parece que el certificado AnyConnect expiró el día de ayer. Hemos habilitado una excepción provisional en tu perfil para que puedas renovarlo directamente.",
-          },
-          {
-            t: "¿Podrías confirmar si tras reiniciar el equipo e ingresar tu clave de red sigue saliendo el error 403 o si te aparece una ventana emergente para actualizar el certificado?",
-            b: true,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "INC-2024-8934",
-    titulo: "Instalación de Adobe Creative Cloud para campañas",
-    resumen: "Licencia en proceso de aprobación por el área de compras.",
-    prioridad: "Media",
-    estado: "abierto",
-    confirmado: false,
-    categoria: "Software y Aplicaciones",
-    enviado: "Enviado hoy a las 08:40 AM",
-    hace: "Hace 2 h",
-    minutos: 120,
-    tecnico: { iniciales: "LP", nombre: "Laura Pérez", rol: "Soporte TI Nivel 1" },
-    respuestaEstimada: "Mañana 10:00",
-    turno: "Turno estándar",
-    dispositivo: DISPOSITIVO,
-    mensajes: [
-      mensajeInicial(
-        "8934",
-        "Necesito Adobe Creative Cloud (Photoshop e Illustrator) para preparar las piezas de la campaña de noviembre.",
-        "08:40 AM",
-        "Hoy",
-      ),
-      {
-        id: "8934-m2",
-        autor: "Laura Pérez",
-        rol: "Técnico de Soporte TI",
-        esMio: false,
-        hace: "Hace 2 h",
-        hora: "09:10 AM",
-        parrafos: [
-          {
-            t: "Hola Elena, recibimos tu solicitud. La licencia está en aprobación; en cuanto se autorice te instalamos el paquete de forma remota.",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "INC-2024-8902",
-    titulo: "Acceso a la carpeta compartida de Campañas",
-    resumen: "Se está validando el permiso con el responsable del área.",
-    prioridad: "Media",
-    estado: "abierto",
-    confirmado: false,
-    categoria: "Accesos y Seguridad",
-    enviado: "Enviado ayer a las 16:20",
-    hace: "Hace 1 día",
-    minutos: 1440,
-    tecnico: { iniciales: "AR", nombre: "Andrés Ruiz", rol: "Soporte TI Nivel 2" },
-    respuestaEstimada: "Hoy 17:00",
-    turno: "Turno estándar",
-    dispositivo: DISPOSITIVO,
-    mensajes: [
-      mensajeInicial(
-        "8902",
-        "No me deja abrir la carpeta compartida de Campañas, me aparece 'acceso denegado'.",
-        "16:20",
-        "Ayer",
-      ),
-    ],
-  },
-  {
-    id: "INC-2024-8712",
-    titulo: "Monitor externo parpadea con cable HDMI",
-    resumen: "Sustitución de cable realizada en oficina.",
-    prioridad: "Baja",
-    estado: "resuelto",
-    confirmado: false,
-    categoria: "Hardware y Equipos",
-    enviado: "Enviado hace 3 días",
-    hace: "Hace 3 días",
-    minutos: 4320,
-    tecnico: { iniciales: "HW", nombre: "Soporte Presencial", rol: "Hardware" },
-    respuestaEstimada: "Completado",
-    turno: "Atención presencial",
-    dispositivo: { nombre: 'Monitor Dell 27" 4K', so: "Puesto de trabajo" },
-    mensajes: [
-      mensajeInicial("8712", "El monitor externo parpadea cada pocos segundos cuando está conectado por HDMI.", "09:30", "Hace 3 días"),
-      {
-        id: "8712-m2",
-        autor: "Soporte Presencial",
-        rol: "Técnico de Soporte TI",
-        esMio: false,
-        hace: "Hace 3 días",
-        hora: "12:15 PM",
-        parrafos: [
-          {
-            t: "Pasamos por tu puesto y sustituimos el cable HDMI por uno nuevo. Con eso el parpadeo desapareció. Por favor confirma si todo sigue bien.",
-          },
-        ],
-      },
-    ],
-  },
-  ...[
-    ["INC-2024-8650", "Restablecer contraseña de correo corporativo", "Contraseña restablecida y verificada.", "Baja", "Hace 5 días", 7200, "Accesos y Seguridad"],
-    ["INC-2024-8611", "Impresora de la planta 2 sin tóner", "Tóner repuesto por mantenimiento.", "Baja", "Hace 6 días", 8640, "Hardware y Equipos"],
-    ["INC-2024-8590", "Actualización a macOS Sonoma", "Equipo actualizado fuera de horario.", "Media", "Hace 1 semana", 10080, "Software y Aplicaciones"],
-    ["INC-2024-8544", "Alta de usuario en Slack", "Cuenta creada y asignada a canales de Marketing.", "Baja", "Hace 1 semana", 11520, "Software y Aplicaciones"],
-    ["INC-2024-8503", "Teclado con teclas que no responden", "Teclado reemplazado.", "Baja", "Hace 2 semanas", 20160, "Hardware y Equipos"],
-    ["INC-2024-8470", "Error al abrir hojas de cálculo compartidas", "Se reparó la caché de la aplicación.", "Media", "Hace 2 semanas", 21600, "Software y Aplicaciones"],
-  ].map(([id, titulo, resumen, prioridad, hace, minutos, categoria]) => ({
-    id: id as string,
-    titulo: titulo as string,
-    resumen: resumen as string,
-    prioridad: prioridad as Prioridad,
-    estado: "resuelto" as Estado,
-    confirmado: true,
-    categoria: categoria as string,
-    enviado: `Enviado ${(hace as string).toLowerCase()}`,
-    hace: hace as string,
-    minutos: minutos as number,
-    tecnico: { iniciales: "ST", nombre: "Soporte TI", rol: "Mesa de Ayuda" },
-    respuestaEstimada: "Completado",
-    turno: "Turno estándar",
-    dispositivo: DISPOSITIVO,
-    mensajes: [mensajeInicial(id as string, titulo as string, "09:00", hace as string)],
-  })),
-];
+  let hace = "";
+  if (mins < 1) hace = "Hace un momento";
+  else if (mins < 60) hace = `Hace ${mins} min`;
+  else if (mins < 1440) hace = `Hace ${Math.floor(mins / 60)} h`;
+  else hace = `Hace ${Math.floor(mins / 1440)} d`;
 
-/* ---------- Utilidades ---------- */
+  return {
+    hace,
+    minutos: mins,
+    enviado: `Enviado el ${fechaTexto} a las ${hora}`,
+    hora,
+  };
+}
+
+function mapPrioridad(priority?: string): Prioridad {
+  const p = String(priority || "").toUpperCase();
+  if (p === "CRITICAL" || p === "HIGH" || p === "ALTA") return "Alta";
+  if (p === "MEDIUM" || p === "MEDIA") return "Media";
+  return "Baja";
+}
+
+function mapEstado(status?: string): { estado: Estado; confirmado: boolean } {
+  const s = String(status || "").toUpperCase();
+  if (s === "CLOSED") return { estado: "resuelto", confirmado: true };
+  if (s === "RESOLVED") return { estado: "resuelto", confirmado: false };
+  if (s === "WAITING_USER" || s === "PENDING" || s === "ON_HOLD") {
+    return { estado: "esperando", confirmado: false };
+  }
+  return { estado: "abierto", confirmado: false };
+}
+
+function mapTicketFromDB(raw: any, usuarioActualId?: string): Ticket {
+  const tiempo = tiempoRelativo(raw.created_at);
+  const { estado, confirmado } = mapEstado(raw.status);
+  const creadorNombre = raw.creator?.name || raw.creator?.username || "Tú";
+  const tieneTecnicoAsignado = Boolean(raw.assigned_to || raw.assignee?.id);
+  const tecnicoNombre = raw.assignee?.name || raw.assignee?.username || "Sin asignar";
+
+  const mensajesBase: Mensaje[] = [
+    {
+      id: `${raw.id}-desc`,
+      autor: creadorNombre,
+      rol: "Tú (Solicitante)",
+      esMio: true,
+      hace: tiempo.hace,
+      hora: tiempo.hora,
+      parrafos: [{ t: raw.description || "Sin descripción" }],
+    },
+  ];
+
+  if (Array.isArray(raw.comments) && raw.comments.length > 0) {
+    const comentariosOrdenados = [...raw.comments].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+
+    for (const c of comentariosOrdenados) {
+      const tCom = tiempoRelativo(c.created_at);
+      const esMio = usuarioActualId
+        ? c.user?.id === usuarioActualId
+        : c.user?.role === "usuario";
+      mensajesBase.push({
+        id: c.id,
+        autor: c.user?.name || c.user?.username || "Soporte TI",
+        rol: esMio ? "Tú (Solicitante)" : "Técnico de Soporte TI",
+        esMio,
+        hace: tCom.hace,
+        hora: tCom.hora,
+        parrafos: [{ t: c.content }],
+      });
+    }
+  }
+
+  if (raw.resolution) {
+    mensajesBase.push({
+      id: `${raw.id}-res`,
+      autor: tecnicoNombre,
+      rol: "Resolución Oficial",
+      esMio: false,
+      hace: "Resolución",
+      hora: tiempoRelativo(raw.updated_at).hora,
+      parrafos: [{ t: raw.resolution, b: true }],
+    });
+  }
+
+  return {
+    id: raw.id,
+    codigoCorto: String(raw.id).slice(0, 8).toUpperCase(),
+    titulo: raw.title,
+    resumen: raw.description?.split("\n")[0] || "Solicitud registrada",
+    prioridad: mapPrioridad(raw.priority),
+    estado,
+    estadoRaw: String(raw.status || "OPEN").toUpperCase(),
+    confirmado,
+    categoria: raw.category?.name || "General",
+    subcategoria: raw.subcategory,
+    tipo: raw.type || "INCIDENTE",
+    enviado: tiempo.enviado,
+    hace: tiempo.hace,
+    minutos: tiempo.minutos,
+    tieneTecnicoAsignado,
+    tecnico: {
+      iniciales: tieneTecnicoAsignado ? obtenerIniciales(tecnicoNombre) : "TI",
+      nombre: tecnicoNombre,
+      rol: tieneTecnicoAsignado ? "Técnico de Soporte TI" : "En cola de asignación",
+    },
+    respuestaEstimada: estado === "resuelto" ? "Completado" : "< 2h hábiles",
+    turno: tieneTecnicoAsignado ? "En atención" : "Pendiente de asignar",
+    dispositivo: {
+      nombre: raw.subcategory || raw.type || "Equipo corporativo",
+      so: raw.category?.name || "Soporte TI",
+    },
+    mensajes: mensajesBase,
+    detalleCargado: Array.isArray(raw.comments),
+  };
+}
+
+/* ---------- Modal de Confirmación antes de Cerrar Ticket ---------- */
+function ConfirmCloseModal({
+  ticket,
+  onCancel,
+  onConfirm,
+}: {
+  ticket: Ticket | null;
+  onCancel: () => void;
+  onConfirm: (ticketId: string) => void;
+}) {
+  if (!ticket) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-close-title"
+      className="fixed inset-0 z-[115] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs transition-opacity"
+    >
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="flex items-start gap-3.5">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <div className="flex-1">
+            <h3
+              id="confirm-close-title"
+              className="text-base font-bold text-slate-800"
+            >
+              ¿Confirmas que deseas cerrar este ticket?
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
+              Estás a punto de cerrar la solicitud{" "}
+              <span className="font-mono font-semibold text-slate-800">
+                #{ticket.codigoCorto}
+              </span>{" "}
+              (<span className="font-medium text-slate-800">{ticket.titulo}</span>).
+            </p>
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-[11px] leading-relaxed text-amber-800">
+              <strong>Importante:</strong> Una vez cerrado, el ticket no podrá
+              volver a abrirse. Si el problema persiste más adelante, deberás
+              crear una nueva solicitud.
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap justify-end gap-2.5">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(ticket.id)}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-600"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Sí, cerrar ticket
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Modal de Carga y Resultado (Success / Error) ---------- */
+function ActionModal({
+  modal,
+  onClose,
+}: {
+  modal: ModalState;
+  onClose: () => void;
+}) {
+  if (!modal.open) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="action-modal-title"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs transition-opacity"
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full">
+          {modal.status === "loading" && (
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-[#313652]">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          )}
+          {modal.status === "success" && (
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+          )}
+          {modal.status === "error" && (
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-500">
+              <XCircle className="h-8 w-8" />
+            </div>
+          )}
+        </div>
+
+        <h3
+          id="action-modal-title"
+          className="text-base font-bold text-slate-800"
+        >
+          {modal.title}
+        </h3>
+        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          {modal.description}
+        </p>
+
+        {modal.status !== "loading" && (
+          <button
+            type="button"
+            onClick={onClose}
+            className={`mt-6 w-full rounded-xl px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors ${
+              modal.status === "success"
+                ? "bg-emerald-500 hover:bg-emerald-600"
+                : "bg-red-500 hover:bg-red-600"
+            }`}
+          >
+            {modal.status === "success" ? "Aceptar" : "Entendido"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Componente Skeleton de Carga ---------- */
+function SkeletonSolicitudes({ vista }: { vista: "dividida" | "compacta" }) {
+  return (
+    <div
+      aria-busy="true"
+      aria-label="Cargando solicitudes"
+      className={
+        vista === "dividida" ? "grid gap-6 lg:grid-cols-[340px_1fr]" : ""
+      }
+    >
+      <div>
+        <div className="mb-3 flex items-center justify-between px-1">
+          <div className="h-3 w-28 animate-pulse rounded bg-slate-200" />
+          <div className="h-3 w-20 animate-pulse rounded bg-slate-200" />
+        </div>
+
+        <div
+          className={
+            vista === "compacta"
+              ? "grid gap-3 md:grid-cols-2"
+              : "flex flex-col gap-3"
+          }
+        >
+          {[1, 2, 3, 4].map((item) => (
+            <div
+              key={item}
+              className="animate-pulse rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-16 rounded bg-slate-200" />
+                  <div className="h-4 w-20 rounded-full bg-indigo-100/70" />
+                </div>
+                <div className="h-3 w-12 rounded bg-slate-200" />
+              </div>
+
+              <div className="mt-3 h-4 w-4/5 rounded bg-slate-200" />
+              <div className="mt-2 h-3 w-full rounded bg-slate-100" />
+              <div className="mt-1.5 h-3 w-2/3 rounded bg-slate-100" />
+
+              <div className="mt-3 flex items-center gap-2">
+                <div className="h-5 w-24 rounded-full bg-sky-100/70" />
+              </div>
+
+              <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-full bg-slate-200" />
+                  <div className="h-3 w-24 rounded bg-slate-200" />
+                </div>
+                <div className="h-3 w-24 rounded bg-slate-200" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {vista === "dividida" && (
+        <div className="flex flex-col gap-5">
+          <section className="animate-pulse rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-20 rounded bg-slate-200" />
+                <div className="h-6 w-28 rounded-full bg-sky-100/70" />
+              </div>
+              <div className="h-8 w-8 rounded-lg bg-slate-100" />
+            </div>
+
+            <div className="mt-4 h-5 w-28 rounded-full bg-indigo-100/70" />
+            <div className="mt-3 h-6 w-3/4 rounded bg-slate-200" />
+            <div className="mt-2.5 h-3.5 w-64 rounded bg-slate-100" />
+
+            <div className="mt-5 grid gap-4 rounded-xl bg-indigo-50/50 p-4 sm:grid-cols-3">
+              {[1, 2, 3].map((box) => (
+                <div key={box} className="space-y-2">
+                  <div className="h-3 w-24 rounded bg-slate-200/80" />
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-6 w-6 rounded-full bg-slate-300/70" />
+                    <div className="space-y-1.5">
+                      <div className="h-3.5 w-24 rounded bg-slate-200" />
+                      <div className="h-2.5 w-20 rounded bg-slate-200/70" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="animate-pulse rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-5 flex items-center justify-between">
+              <div className="h-4 w-44 rounded bg-slate-200" />
+              <div className="h-5 w-20 rounded-full bg-slate-100" />
+            </div>
+
+            <div className="space-y-6 border-l border-slate-200 pl-6">
+              {[1, 2].map((msg) => (
+                <div key={msg} className="relative">
+                  <span className="absolute -left-[29px] top-1 h-2.5 w-2.5 rounded-full bg-slate-300 ring-4 ring-white" />
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-3.5 w-28 rounded bg-slate-200" />
+                      <div className="h-4 w-24 rounded-full bg-slate-100" />
+                    </div>
+                    <div className="h-3 w-20 rounded bg-slate-100" />
+                  </div>
+                  <div className="space-y-2 rounded-xl bg-indigo-50/50 p-4">
+                    <div className="h-3 w-full rounded bg-slate-200/80" />
+                    <div className="h-3 w-5/6 rounded bg-slate-200/80" />
+                    <div className="h-3 w-1/2 rounded bg-slate-200/80" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Utilidades UI ---------- */
 type Filtro = "todos" | "abiertos" | "esperando" | "resueltos";
 type Orden = "recientes" | "antiguos" | "prioridad";
 
-const PESO_PRIORIDAD: Record<Prioridad, number> = { Alta: 0, Media: 1, Baja: 2 };
+const PESO_PRIORIDAD: Record<Prioridad, number> = {
+  Alta: 0,
+  Media: 1,
+  Baja: 2,
+};
 
 const estiloPrioridad: Record<Prioridad, string> = {
   Alta: "bg-indigo-100 text-indigo-700",
@@ -258,12 +488,14 @@ const estiloPrioridad: Record<Prioridad, string> = {
 };
 
 function Texto({ t }: { t: string }) {
-  // Convierte `texto` en código en línea
   return (
     <>
       {t.split("`").map((parte, i) =>
         i % 2 === 1 ? (
-          <code key={i} className="rounded bg-white/70 px-1 py-0.5 font-mono text-[11px]">
+          <code
+            key={i}
+            className="rounded bg-white/70 px-1 py-0.5 font-mono text-[11px]"
+          >
             {parte}
           </code>
         ) : (
@@ -274,7 +506,13 @@ function Texto({ t }: { t: string }) {
   );
 }
 
-function ChipEstado({ ticket, grande = false }: { ticket: Ticket; grande?: boolean }) {
+function ChipEstado({
+  ticket,
+  grande = false,
+}: {
+  ticket: Ticket;
+  grande?: boolean;
+}) {
   const base = `inline-flex items-center gap-1 rounded-full font-semibold ${
     grande ? "px-3 py-1 text-xs" : "px-2.5 py-1 text-[11px]"
   }`;
@@ -287,17 +525,26 @@ function ChipEstado({ ticket, grande = false }: { ticket: Ticket; grande?: boole
   if (ticket.estado === "abierto")
     return (
       <span className={`${base} bg-sky-50 text-sky-700`}>
-        <Clock className="h-3 w-3" /> En progreso
+        <Clock className="h-3 w-3" />{" "}
+        {ticket.estadoRaw === "IN_PROGRESS" ? "En progreso" : "Abierto"}
       </span>
     );
   return (
-    <span className={`${base} border border-emerald-200 bg-emerald-50 text-emerald-700`}>
-      <CheckCircle2 className="h-3 w-3" /> Resuelto
+    <span
+      className={`${base} border border-emerald-200 bg-emerald-50 text-emerald-700`}
+    >
+      <CheckCircle2 className="h-3 w-3" /> Cerrado / Resuelto
     </span>
   );
 }
 
-function Iniciales({ texto, oscuro = true }: { texto: string; oscuro?: boolean }) {
+function Iniciales({
+  texto,
+  oscuro = true,
+}: {
+  texto: string;
+  oscuro?: boolean;
+}) {
   return (
     <span
       className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
@@ -311,14 +558,34 @@ function Iniciales({ texto, oscuro = true }: { texto: string; oscuro?: boolean }
 
 /* ---------- Página ---------- */
 export default function MisSolicitudesPage() {
-  const [tickets, setTickets] = useState<Ticket[]>(TICKETS_INICIALES);
-  const [seleccionadoId, setSeleccionadoId] = useState<string>(TICKETS_INICIALES[0].id);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [usuarioActual, setUsuarioActual] = useState<{ id: string; nombre: string }>({
+    id: "",
+    nombre: "Tú",
+  });
+  const [seleccionadoId, setSeleccionadoId] = useState<string>("");
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [orden, setOrden] = useState<Orden>("recientes");
+  const [busqueda, setBusqueda] = useState("");
   const [vista, setVista] = useState<"dividida" | "compacta">("dividida");
   const [respuesta, setRespuesta] = useState("");
   const [actualizando, setActualizando] = useState(false);
-  const [toast, setToast] = useState<{ show: boolean; msg: string }>({ show: false, msg: "" });
+
+  // Estado del modal de confirmación antes de cerrar
+  const [ticketACerrar, setTicketACerrar] = useState<Ticket | null>(null);
+
+  const [toast, setToast] = useState<{ show: boolean; msg: string }>({
+    show: false,
+    msg: "",
+  });
+
+  const [actionModal, setActionModal] = useState<ModalState>({
+    open: false,
+    status: "loading",
+    title: "",
+    description: "",
+  });
 
   const respuestaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -326,6 +593,87 @@ export default function MisSolicitudesPage() {
     setToast({ show: true, msg });
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 3000);
   };
+
+  const cerrarModal = () =>
+    setActionModal((prev) => ({ ...prev, open: false }));
+
+  /* Cargar tickets creados por el usuario desde /api/tickets */
+  const cargarTickets = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
+    setActualizando(true);
+    try {
+      const [resMe, resTickets] = await Promise.all([
+        fetch("/api/me", { credentials: "include" }),
+        fetch("/api/tickets", { credentials: "include" }),
+      ]);
+
+      let userId = "";
+      if (resMe.ok) {
+        const me = await resMe.json();
+        userId = me.id || "";
+        setUsuarioActual({
+          id: userId,
+          nombre: me.name || me.username || "Tú",
+        });
+      }
+
+      if (resTickets.ok) {
+        const data = await resTickets.json();
+        const mapeados: Ticket[] = (data.tickets || []).map((t: any) =>
+          mapTicketFromDB(t, userId),
+        );
+        setTickets(mapeados);
+        if (mapeados.length > 0) {
+          setSeleccionadoId((prev) =>
+            prev && mapeados.some((t) => t.id === prev) ? prev : mapeados[0].id,
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error cargando mis tickets:", error);
+      setActionModal({
+        open: true,
+        status: "error",
+        title: "Error al cargar solicitudes",
+        description:
+          "No se pudieron obtener tus tickets. Verifica tu conexión e inténtalo de nuevo.",
+      });
+    } finally {
+      setCargando(false);
+      setActualizando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarTickets();
+  }, [cargarTickets]);
+
+  /* Cargar detalle y comentarios del ticket seleccionado */
+  useEffect(() => {
+    if (!seleccionadoId) return;
+    const actual = tickets.find((t) => t.id === seleccionadoId);
+    if (!actual || actual.detalleCargado) return;
+
+    const cargarDetalle = async () => {
+      try {
+        const res = await fetch(`/api/tickets/${seleccionadoId}`, {
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.ticket) {
+          const detallado = mapTicketFromDB(data.ticket, usuarioActual.id);
+          setTickets((prev) =>
+            prev.map((item) => (item.id === seleccionadoId ? detallado : item)),
+          );
+        }
+      } catch (e) {
+        console.error("Error cargando detalle del ticket:", e);
+      }
+    };
+
+    cargarDetalle();
+  }, [seleccionadoId, tickets, usuarioActual.id]);
 
   const cuenta = {
     todos: tickets.length,
@@ -341,66 +689,226 @@ export default function MisSolicitudesPage() {
       if (filtro === "resueltos") return t.estado === "resuelto";
       return true;
     })
+    .filter((t) => {
+      if (!busqueda.trim()) return true;
+      const q = busqueda.toLowerCase();
+      return (
+        t.titulo.toLowerCase().includes(q) ||
+        t.resumen.toLowerCase().includes(q) ||
+        t.codigoCorto.toLowerCase().includes(q) ||
+        t.categoria.toLowerCase().includes(q)
+      );
+    })
     .sort((a, b) => {
       if (orden === "antiguos") return b.minutos - a.minutos;
       if (orden === "prioridad")
-        return PESO_PRIORIDAD[a.prioridad] - PESO_PRIORIDAD[b.prioridad] || a.minutos - b.minutos;
+        return (
+          PESO_PRIORIDAD[a.prioridad] - PESO_PRIORIDAD[b.prioridad] ||
+          a.minutos - b.minutos
+        );
       return a.minutos - b.minutos;
     });
 
   const seleccionado = tickets.find((t) => t.id === seleccionadoId) ?? lista[0];
 
   const actualizarTicket = (id: string, cambios: Partial<Ticket>) =>
-    setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, ...cambios } : t)));
+    setTickets((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...cambios } : t)),
+    );
 
-  const refrescar = () => {
-    setActualizando(true);
-    setTimeout(() => {
-      setActualizando(false);
-      mostrarToast("Lista actualizada");
-    }, 700);
+  const refrescar = async () => {
+    await cargarTickets(true);
+    mostrarToast("Lista actualizada");
   };
 
-  const enviarRespuesta = () => {
-    if (!seleccionado || respuesta.trim().length === 0) {
-      mostrarToast("Escribe una respuesta antes de enviar");
+  /* Acción ejecutada tras confirmar en el modal */
+  const cerrarTicketUsuario = async (ticketId: string) => {
+    setTicketACerrar(null);
+    setActionModal({
+      open: true,
+      status: "loading",
+      title: "Cerrando solicitud...",
+      description: "Estamos cerrando tu ticket de forma definitiva.",
+    });
+
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "CLOSED",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionModal({
+          open: true,
+          status: "error",
+          title: "No se pudo cerrar el ticket",
+          description:
+            data.error || "Ocurrió un problema al cerrar la solicitud.",
+        });
+        return;
+      }
+
+      actualizarTicket(ticketId, {
+        estado: "resuelto",
+        estadoRaw: "CLOSED",
+        confirmado: true,
+      });
+
+      setActionModal({
+        open: true,
+        status: "success",
+        title: "¡Ticket cerrado!",
+        description:
+          "Tu solicitud ha quedado cerrada. Si vuelves a necesitar asistencia sobre este u otro tema, por favor crea un nuevo ticket.",
+      });
+    } catch {
+      setActionModal({
+        open: true,
+        status: "error",
+        title: "Error de conexión",
+        description:
+          "No se pudo conectar con el servidor para cerrar el ticket. Inténtalo nuevamente.",
+      });
+    }
+  };
+
+  /* Enviar comentario al técnico */
+  const enviarRespuesta = async () => {
+    if (!seleccionado) {
+      setActionModal({
+        open: true,
+        status: "error",
+        title: "Ticket no seleccionado",
+        description: "Selecciona un ticket válido antes de enviar un comentario.",
+      });
       return;
     }
-    // TODO: aquí llamas a tu API (POST /api/tickets/:id/messages)
-    const nuevo: Mensaje = {
-      id: `${seleccionado.id}-m${seleccionado.mensajes.length + 1}`,
-      autor: YO.nombre,
-      rol: "Tú (Solicitante)",
-      esMio: true,
-      hace: "Ahora",
-      hora: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
-      parrafos: [{ t: respuesta.trim() }],
-    };
-    actualizarTicket(seleccionado.id, {
-      mensajes: [...seleccionado.mensajes, nuevo],
-      estado: seleccionado.estado === "esperando" ? "abierto" : seleccionado.estado,
-      hace: "Hace un momento",
-      minutos: 0,
+
+    if (!seleccionado.tieneTecnicoAsignado) {
+      setActionModal({
+        open: true,
+        status: "error",
+        title: "Aún sin técnico asignado",
+        description:
+          "No puedes registrar comentarios hasta que un técnico sea asignado a tu solicitud.",
+      });
+      return;
+    }
+
+    if (respuesta.trim().length === 0) {
+      setActionModal({
+        open: true,
+        status: "error",
+        title: "Mensaje vacío",
+        description: "Por favor escribe una respuesta o aclaración antes de enviar.",
+      });
+      return;
+    }
+
+    setActionModal({
+      open: true,
+      status: "loading",
+      title: "Enviando comentario...",
+      description: "Guardando tu mensaje en el historial de conversación.",
     });
-    setRespuesta("");
-    mostrarToast("Respuesta enviada al técnico");
+
+    try {
+      const res = await fetch(`/api/tickets/${seleccionado.id}/comments`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: respuesta.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionModal({
+          open: true,
+          status: "error",
+          title: "No se pudo enviar el comentario",
+          description:
+            data.error || "Ocurrió un error al registrar tu respuesta en el ticket.",
+        });
+        return;
+      }
+
+      const nuevo: Mensaje = {
+        id: data.comment.id,
+        autor: data.comment.user?.name || usuarioActual.nombre,
+        rol: "Tú (Solicitante)",
+        esMio: true,
+        hace: "Ahora",
+        hora: new Date(data.comment.created_at).toLocaleTimeString("es-MX", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        parrafos: [{ t: data.comment.content }],
+      };
+
+      actualizarTicket(seleccionado.id, {
+        mensajes: [...seleccionado.mensajes, nuevo],
+        estado:
+          seleccionado.estado === "esperando" ? "abierto" : seleccionado.estado,
+        estadoRaw: data.status || seleccionado.estadoRaw,
+        hace: "Hace un momento",
+        minutos: 0,
+      });
+
+      setRespuesta("");
+      setActionModal({
+        open: true,
+        status: "success",
+        title: "¡Respuesta enviada!",
+        description:
+          "Tu comentario se ha guardado correctamente y el técnico asignado ha sido notificado.",
+      });
+    } catch {
+      setActionModal({
+        open: true,
+        status: "error",
+        title: "Error de conexión",
+        description:
+          "No se pudo conectar con el servidor para enviar tu respuesta. Inténtalo de nuevo.",
+      });
+    }
   };
 
   const irAResponder = () => {
-    respuestaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    respuestaRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
     respuestaRef.current?.focus();
   };
 
-  const tabs: { id: Filtro; label: string; n: number; alerta?: boolean; punto?: boolean }[] = [
+  const tabs: {
+    id: Filtro;
+    label: string;
+    n: number;
+    alerta?: boolean;
+    punto?: boolean;
+  }[] = [
     { id: "todos", label: "Todos", n: cuenta.todos },
     { id: "abiertos", label: "Abiertos", n: cuenta.abiertos, punto: true },
-    { id: "esperando", label: "Esperando mi respuesta", n: cuenta.esperando, alerta: true },
-    { id: "resueltos", label: "Resueltos", n: cuenta.resueltos },
+    {
+      id: "esperando",
+      label: "Esperando mi respuesta",
+      n: cuenta.esperando,
+      alerta: true,
+    },
+    { id: "resueltos", label: "Cerrados", n: cuenta.resueltos },
   ];
 
   const tituloLista =
     filtro === "resueltos"
-      ? "solicitudes resueltas"
+      ? "solicitudes cerradas"
       : filtro === "todos"
         ? "solicitudes"
         : "solicitudes activas";
@@ -416,35 +924,43 @@ export default function MisSolicitudesPage() {
           if (vista === "compacta") setVista("dividida");
         }}
         className={`w-full rounded-xl border bg-white p-4 text-left shadow-sm transition-all hover:shadow-md ${
-          activa ? "border-slate-300 border-l-4 border-l-[#313652]" : "border-slate-200"
+          activa
+            ? "border-slate-300 border-l-4 border-l-[#313652]"
+            : "border-slate-200"
         }`}
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] text-slate-600">#{t.id}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${estiloPrioridad[t.prioridad]}`}>
+            <span className="font-mono text-[11px] text-slate-600">
+              #{t.codigoCorto}
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${estiloPrioridad[t.prioridad]}`}
+            >
               {t.prioridad === "Baja" ? "Baja" : `Prioridad ${t.prioridad}`}
             </span>
           </div>
           <span className="shrink-0 text-[11px] text-slate-500">{t.hace}</span>
         </div>
         <p className="mt-2 text-sm font-semibold text-slate-800">{t.titulo}</p>
-        <p className="mt-1 line-clamp-2 text-xs text-indigo-700/80">{t.resumen}</p>
+        <p className="mt-1 line-clamp-2 text-xs text-indigo-700/80">
+          {t.resumen}
+        </p>
 
         <div className="mt-3 flex items-center gap-2">
           <ChipEstado ticket={t} />
-          {t.estado === "resuelto" && !t.confirmado && (
-            <span className="text-[11px] text-slate-500">Pendiente de tu conformidad</span>
-          )}
         </div>
 
         <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-[11px]">
           <span className="flex items-center gap-1.5 text-slate-700">
-            <Iniciales texto={t.tecnico.iniciales} oscuro={t.estado !== "resuelto"} />
+            <Iniciales
+              texto={t.tecnico.iniciales}
+              oscuro={t.estado !== "resuelto"}
+            />
             {t.tecnico.nombre}
           </span>
           {t.estado === "resuelto" ? (
-            <span className="font-semibold text-emerald-600">Solucionado</span>
+            <span className="font-semibold text-emerald-600">Cerrado</span>
           ) : (
             <span className="flex items-center gap-1 text-slate-600">
               <Clock className="h-3 w-3" /> Resp. estimada:{" "}
@@ -458,10 +974,22 @@ export default function MisSolicitudesPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl">
-      {/* Toast */}
+      {/* Modal de Confirmación antes de cerrar */}
+      <ConfirmCloseModal
+        ticket={ticketACerrar}
+        onCancel={() => setTicketACerrar(null)}
+        onConfirm={(id) => cerrarTicketUsuario(id)}
+      />
+
+      {/* Modal de Carga y Resultado (Success / Error) */}
+      <ActionModal modal={actionModal} onClose={cerrarModal} />
+
+      {/* Toast ligero */}
       <div
         className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-white shadow-xl transition-all duration-500 ${
-          toast.show ? "translate-y-0 opacity-100" : "-translate-y-24 opacity-0 pointer-events-none"
+          toast.show
+            ? "translate-y-0 opacity-100"
+            : "-translate-y-24 opacity-0 pointer-events-none"
         }`}
       >
         <CheckCircle2 className="h-5 w-5" />
@@ -471,27 +999,47 @@ export default function MisSolicitudesPage() {
       {/* Barra superior */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <nav className="flex items-center gap-2 text-xs text-slate-500">
-          <Home className="h-3.5 w-3.5" />
-          <span>Inicio</span>
+          <Link
+            href="/portal/dashboard"
+            className="flex items-center gap-1.5 transition-colors hover:text-slate-800"
+          >
+            <Home className="h-3.5 w-3.5" />
+            <span>Inicio</span>
+          </Link>
+
           <ChevronRight className="h-3 w-3" />
-          <span className="rounded-md bg-slate-200 px-2 py-0.5 font-semibold text-slate-700">
+
+          <Link
+            href="/portal/tickets/consultarMT"
+            className="rounded-md bg-slate-200 px-2 py-0.5 font-semibold text-slate-700 transition-colors hover:bg-slate-300"
+          >
             Mis Solicitudes
-          </span>
+          </Link>
         </nav>
         <div className="flex items-center gap-3">
-          <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-400 md:flex md:w-72">
-            <Search className="h-3.5 w-3.5" />
+          <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 md:flex md:w-72">
+            <Search className="h-3.5 w-3.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Buscar tickets, artículos, soluciones..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar tickets por título, ID o categoría..."
               className="w-full bg-transparent outline-none placeholder:text-slate-400"
             />
           </div>
-          <button type="button" aria-label="Notificaciones" className="relative rounded-full p-2 text-slate-600 hover:bg-white">
+          <button
+            type="button"
+            aria-label="Notificaciones"
+            className="relative rounded-full p-2 text-slate-600 hover:bg-white"
+          >
             <Bell className="h-4 w-4" />
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
           </button>
-          <button type="button" aria-label="Ayuda" className="rounded-full p-2 text-slate-600 hover:bg-white">
+          <button
+            type="button"
+            aria-label="Ayuda"
+            className="rounded-full p-2 text-slate-600 hover:bg-white"
+          >
             <CircleHelp className="h-4 w-4" />
           </button>
         </div>
@@ -501,22 +1049,35 @@ export default function MisSolicitudesPage() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-lg">
           <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide">
-            <span className="rounded bg-indigo-100 px-2 py-1 text-indigo-700">Atención al empleado</span>
+            <span className="rounded bg-indigo-100 px-2 py-1 text-indigo-700">
+              Atención al empleado
+            </span>
             <span className="flex items-center gap-1.5 font-medium normal-case text-slate-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Canal de Soporte TI Activo
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Canal
+              de Soporte TI Activo
             </span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Seguimiento de Mis Solicitudes</h1>
+          <h1 className="text-2xl font-bold text-slate-800">
+            Seguimiento de Mis Solicitudes
+          </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Revisa el estado de tus consultas técnicas, responde a las dudas del equipo de soporte y
-            confirma cuando tu problema esté solucionado.
+            Revisa el estado de tus consultas técnicas, responde a las dudas del
+            equipo de soporte y cierra tu ticket cuando tu problema esté solucionado.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-medium">
             {[
-              { id: "dividida", label: "Dividida", icono: <Columns2 className="h-3.5 w-3.5" /> },
-              { id: "compacta", label: "Compacta", icono: <Rows3 className="h-3.5 w-3.5" /> },
+              {
+                id: "dividida",
+                label: "Dividida",
+                icono: <Columns2 className="h-3.5 w-3.5" />,
+              },
+              {
+                id: "compacta",
+                label: "Compacta",
+                icono: <Rows3 className="h-3.5 w-3.5" />,
+              },
             ].map((v) => (
               <button
                 key={v.id}
@@ -524,7 +1085,9 @@ export default function MisSolicitudesPage() {
                 aria-pressed={vista === v.id}
                 onClick={() => setVista(v.id as "dividida" | "compacta")}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
-                  vista === v.id ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  vista === v.id
+                    ? "bg-white text-slate-800 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
                 }`}
               >
                 {v.icono}
@@ -553,18 +1116,26 @@ export default function MisSolicitudesPage() {
                 type="button"
                 onClick={() => setFiltro(t.id)}
                 className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                  activo ? "bg-indigo-50 text-slate-900" : "text-slate-500 hover:bg-slate-50"
+                  activo
+                    ? "bg-indigo-50 text-slate-900"
+                    : "text-slate-500 hover:bg-slate-50"
                 }`}
               >
-                {t.punto && <span className="h-1.5 w-1.5 rounded-full bg-slate-800" />}
+                {t.punto && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-800" />
+                )}
                 {t.alerta && <AlertCircle className="h-3.5 w-3.5" />}
                 {t.label}
                 <span
                   className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                    t.alerta ? "bg-[#313652] text-white" : activo ? "bg-indigo-100 text-indigo-700" : "text-slate-400"
+                    t.alerta
+                      ? "bg-[#313652] text-white"
+                      : activo
+                        ? "bg-indigo-100 text-indigo-700"
+                        : "text-slate-400"
                   }`}
                 >
-                  {t.n}
+                  {cargando ? "—" : t.n}
                 </span>
               </button>
             );
@@ -589,285 +1160,346 @@ export default function MisSolicitudesPage() {
             type="button"
             aria-label="Actualizar"
             onClick={refrescar}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+            disabled={cargando}
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
           >
-            <RefreshCw className={`h-4 w-4 ${actualizando ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${actualizando ? "animate-spin" : ""}`}
+            />
           </button>
         </div>
       </div>
 
-      <div className={vista === "dividida" ? "grid gap-6 lg:grid-cols-[340px_1fr]" : ""}>
-        {/* ============ Lista ============ */}
-        <div>
-          <div className="mb-3 flex items-center justify-between gap-3 px-1">
-            <h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
-              {lista.length} {tituloLista}
-            </h2>
-            <span className="text-[11px] text-slate-400">
-              {actualizando ? "Actualizando..." : "Actualizado hace un momento"}
-            </span>
+      {/* Skeleton mientras carga, contenido real al terminar */}
+      {cargando ? (
+        <SkeletonSolicitudes vista={vista} />
+      ) : (
+        <div
+          className={
+            vista === "dividida" ? "grid gap-6 lg:grid-cols-[340px_1fr]" : ""
+          }
+        >
+          {/* ============ Lista ============ */}
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-3 px-1">
+              <h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
+                {lista.length} {tituloLista}
+              </h2>
+              <span className="text-[11px] text-slate-400">
+                {actualizando ? "Actualizando..." : "Actualizado"}
+              </span>
+            </div>
+
+            {lista.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                No tienes solicitudes en esta categoría.
+              </div>
+            ) : (
+              <div
+                className={`max-h-[75vh] overflow-y-auto pr-2 ${
+                  vista === "compacta"
+                    ? "grid gap-3 md:grid-cols-2"
+                    : "flex flex-col gap-3"
+                }`}
+              >
+                {lista.map((t) => (
+                  <TarjetaTicket key={t.id} t={t} />
+                ))}
+              </div>
+            )}
           </div>
 
-          {lista.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-              No hay solicitudes en esta categoría.
-            </div>
-          ) : (
-            <div className={vista === "compacta" ? "grid gap-3 md:grid-cols-2" : "flex flex-col gap-3"}>
-              {lista.map((t) => (
-                <TarjetaTicket key={t.id} t={t} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ============ Detalle ============ */}
-        {vista === "dividida" && seleccionado && (
-          <div className="flex flex-col gap-5">
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-600">
-                    #{seleccionado.id}
-                  </span>
-                  <ChipEstado ticket={seleccionado} grande />
-                </div>
-                <button
-                  type="button"
-                  aria-label="Imprimir"
-                  onClick={() => window.print()}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-                >
-                  <Printer className="h-4 w-4" />
-                </button>
-              </div>
-
-              <span
-                className={`mt-3 inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold ${estiloPrioridad[seleccionado.prioridad]}`}
-              >
-                Prioridad {seleccionado.prioridad}
-              </span>
-              <h2 className="mt-3 text-lg font-bold text-slate-800">{seleccionado.titulo}</h2>
-              <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-                <Radio className="h-3.5 w-3.5 text-indigo-500" />
-                {seleccionado.categoria} • {seleccionado.enviado}
-              </p>
-
-              <div className="mt-5 grid gap-4 rounded-xl bg-indigo-50/70 p-4 sm:grid-cols-3">
-                <div>
-                  <p className="text-[11px] text-slate-500">Técnico Asignado</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Iniciales texto={seleccionado.tecnico.iniciales} />
-                    <div className="leading-tight">
-                      <p className="text-xs font-bold text-slate-800">{seleccionado.tecnico.nombre}</p>
-                      <p className="text-[11px] text-slate-500">{seleccionado.tecnico.rol}</p>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[11px] text-slate-500">Tiempo Estimado de Respuesta</p>
-                  <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <Clock className="h-3.5 w-3.5" />
-                    {seleccionado.estado === "resuelto"
-                      ? seleccionado.respuestaEstimada
-                      : `Hoy antes de ${seleccionado.respuestaEstimada.replace("Hoy ", "")}`}
-                  </p>
-                  <p className="text-[11px] text-slate-500">{seleccionado.turno}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-slate-500">Mi Dispositivo</p>
-                  <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <Laptop className="h-3.5 w-3.5" />
-                    {seleccionado.dispositivo.nombre}
-                  </p>
-                  <p className="text-[11px] text-slate-500">{seleccionado.dispositivo.so}</p>
-                </div>
-              </div>
-
-              {seleccionado.estado === "esperando" && (
-                <div className="mt-4 flex flex-wrap items-start gap-3 rounded-xl bg-slate-200/70 p-4">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#313652] text-white">
-                    <MessagesSquare className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-slate-800">
-                      {seleccionado.tecnico.nombre.split(" ")[0]} te ha dejado una consulta sobre tu caso
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                      Por favor responde abajo si reiniciando el equipo te vuelve a solicitar el
-                      certificado o continúa el error, para que el técnico pueda reanudar la asistencia.
-                    </p>
+          {/* ============ Detalle ============ */}
+          {vista === "dividida" && seleccionado && (
+            <div className="flex flex-col gap-5">
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-600">
+                      #{seleccionado.codigoCorto}
+                    </span>
+                    <ChipEstado ticket={seleccionado} grande />
                   </div>
                   <button
                     type="button"
-                    onClick={irAResponder}
-                    className="rounded-lg bg-[#313652] px-3 py-2 text-xs font-semibold text-white hover:bg-[#262a40]"
+                    aria-label="Imprimir"
+                    onClick={() => window.print()}
+                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
                   >
-                    Ir a responder
+                    <Printer className="h-4 w-4" />
                   </button>
                 </div>
-              )}
-            </section>
 
-            {/* Conversación */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="mb-5 flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                  <MessagesSquare className="h-4 w-4" />
-                  Conversación con Soporte TI
-                </h3>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                  {seleccionado.mensajes.length} {seleccionado.mensajes.length === 1 ? "Mensaje" : "Mensajes"}
+                <span
+                  className={`mt-3 inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold ${estiloPrioridad[seleccionado.prioridad]}`}
+                >
+                  Prioridad {seleccionado.prioridad}
                 </span>
-              </div>
+                <h2 className="mt-3 text-lg font-bold text-slate-800">
+                  {seleccionado.titulo}
+                </h2>
+                <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                  <Radio className="h-3.5 w-3.5 text-indigo-500" />
+                  {seleccionado.categoria} • {seleccionado.enviado}
+                </p>
 
-              <ol className="relative space-y-6 border-l border-slate-200 pl-6">
-                {seleccionado.mensajes.map((m) => (
-                  <li key={m.id} className="relative">
-                    <span className="absolute -left-[29px] top-1 h-2.5 w-2.5 rounded-full bg-[#313652] ring-4 ring-white" />
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold text-slate-800">{m.autor}</span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            m.esMio ? "bg-slate-100 text-slate-600" : "bg-[#313652] text-white"
-                          }`}
-                        >
-                          {m.rol}
+                <div className="mt-5 grid gap-4 rounded-xl bg-indigo-50/70 p-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-[11px] text-slate-500">Técnico Asignado</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Iniciales texto={seleccionado.tecnico.iniciales} />
+                      <div className="leading-tight">
+                        <p className="text-xs font-bold text-slate-800">
+                          {seleccionado.tecnico.nombre}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {seleccionado.tecnico.rol}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-slate-500">
+                      Tiempo Estimado de Respuesta
+                    </p>
+                    <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                      <Clock className="h-3.5 w-3.5" />
+                      {seleccionado.respuestaEstimada}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {seleccionado.turno}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-slate-500">Clasificación</p>
+                    <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                      <Laptop className="h-3.5 w-3.5" />
+                      {seleccionado.dispositivo.nombre}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {seleccionado.dispositivo.so}
+                    </p>
+                  </div>
+                </div>
+
+                {seleccionado.estado === "esperando" && (
+                  <div className="mt-4 flex flex-wrap items-start gap-3 rounded-xl bg-slate-200/70 p-4">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#313652] text-white">
+                      <MessagesSquare className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-800">
+                        {seleccionado.tecnico.nombre.split(" ")[0]} te ha dejado
+                        una consulta sobre tu caso
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                        Por favor responde abajo para que el técnico pueda
+                        reanudar la asistencia.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={irAResponder}
+                      className="rounded-lg bg-[#313652] px-3 py-2 text-xs font-semibold text-white hover:bg-[#262a40]"
+                    >
+                      Ir a responder
+                    </button>
+                  </div>
+                )}
+              </section>
+
+              {/* Conversación */}
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 flex items-center justify-between">
+                  <h3 className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <MessagesSquare className="h-4 w-4" />
+                    Conversación con Soporte TI
+                  </h3>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                    {seleccionado.mensajes.length}{" "}
+                    {seleccionado.mensajes.length === 1 ? "Mensaje" : "Mensajes"}
+                  </span>
+                </div>
+
+                <ol className="relative space-y-6 border-l border-slate-200 pl-6">
+                  {seleccionado.mensajes.map((m) => (
+                    <li key={m.id} className="relative">
+                      <span className="absolute -left-[29px] top-1 h-2.5 w-2.5 rounded-full bg-[#313652] ring-4 ring-white" />
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold text-slate-800">
+                            {m.autor}
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              m.esMio
+                                ? "bg-slate-100 text-slate-600"
+                                : "bg-[#313652] text-white"
+                            }`}
+                          >
+                            {m.rol}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500">
+                          {m.hace}
+                          {m.hora ? ` (${m.hora})` : ""}
                         </span>
                       </div>
-                      <span className="text-[11px] text-slate-500">
-                        {m.hace}
-                        {m.hace !== "Hoy" && m.hace !== "Ayer" ? ` (${m.hora})` : `, ${m.hora}`}
-                      </span>
-                    </div>
-                    <div className="space-y-3 rounded-xl bg-indigo-50/70 p-4 text-xs leading-relaxed text-slate-700">
-                      {m.parrafos.map((p, i) => (
-                        <p key={i} className={p.b ? "font-bold text-slate-900" : ""}>
-                          <Texto t={p.t} />
-                        </p>
-                      ))}
-                      {m.adjunto && (
-                        <div className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                          <FileImage className="h-4 w-4 text-slate-500" />
-                          <div className="leading-tight">
-                            <p className="text-[11px] font-semibold text-slate-800">{m.adjunto.nombre}</p>
-                            <p className="text-[10px] text-slate-500">{m.adjunto.detalle}</p>
+                      <div className="space-y-3 rounded-xl bg-indigo-50/70 p-4 text-xs leading-relaxed text-slate-700 whitespace-pre-line">
+                        {m.parrafos.map((p, i) => (
+                          <p
+                            key={i}
+                            className={p.b ? "font-bold text-slate-900" : ""}
+                          >
+                            <Texto t={p.t} />
+                          </p>
+                        ))}
+                        {m.adjunto && (
+                          <div className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                            <FileImage className="h-4 w-4 text-slate-500" />
+                            <div className="leading-tight">
+                              <p className="text-[11px] font-semibold text-slate-800">
+                                {m.adjunto.nombre}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                {m.adjunto.detalle}
+                              </p>
+                            </div>
+                            <Download className="h-3.5 w-3.5 text-slate-400" />
                           </div>
-                          <Download className="h-3.5 w-3.5 text-slate-400" />
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+
+                {/* Responder */}
+                {seleccionado.estado !== "resuelto" && (
+                  <div className="mt-8 border-t border-slate-100 pt-5">
+                    {!seleccionado.tieneTecnicoAsignado ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                        <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                        <div>
+                          <p className="text-xs font-bold">
+                            Esperando asignación de técnico
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-amber-700">
+                            Tu ticket aún está en cola. Podrás enviar comentarios
+                            y responder en cuanto un técnico de soporte sea
+                            asignado a tu caso.
+                          </p>
                         </div>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ol>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <p className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                            <CornerUpLeft className="h-3.5 w-3.5" />
+                            Responder al técnico ({seleccionado.tecnico.nombre})
+                          </p>
+                          <span className="text-[11px] text-indigo-600">
+                            Puedes adjuntar capturas de pantalla
+                          </span>
+                        </div>
+                        <textarea
+                          ref={respuestaRef}
+                          rows={4}
+                          value={respuesta}
+                          onChange={(e) => setRespuesta(e.target.value)}
+                          placeholder="Escribe tu respuesta o aclaración para el técnico..."
+                          className="w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-3 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#313652]"
+                        />
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                          >
+                            <Paperclip className="h-4 w-4" />
+                            Adjuntar nueva captura/archivo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={enviarRespuesta}
+                            disabled={
+                              actionModal.open &&
+                              actionModal.status === "loading"
+                            }
+                            className="flex items-center gap-2 rounded-lg bg-[#313652] px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-[#262a40] disabled:opacity-60"
+                          >
+                            <Send className="h-4 w-4" />
+                            Enviar respuesta al técnico
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </section>
 
-              {/* Responder */}
+              {/* Opción para cerrar ticket (abre el modal de confirmación primero) */}
               {seleccionado.estado !== "resuelto" && (
-                <div className="mt-8 border-t border-slate-100 pt-5">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                      <CornerUpLeft className="h-3.5 w-3.5" />
-                      Responder al técnico ({seleccionado.tecnico.nombre})
-                    </p>
-                    <span className="text-[11px] text-indigo-600">Puedes adjuntar capturas de pantalla</span>
-                  </div>
-                  <textarea
-                    ref={respuestaRef}
-                    rows={4}
-                    value={respuesta}
-                    onChange={(e) => setRespuesta(e.target.value)}
-                    placeholder="Escribe tu respuesta o aclaración para el técnico... (Ej. Ya reinicié el equipo e ingresé mi clave, ahora muestra el botón de renovar certificado)"
-                    className="w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-3 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#313652]"
-                  />
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                    >
-                      <Paperclip className="h-4 w-4" />
-                      Adjuntar nueva captura/archivo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={enviarRespuesta}
-                      className="flex items-center gap-2 rounded-lg bg-[#313652] px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-[#262a40]"
-                    >
-                      <Send className="h-4 w-4" />
-                      Enviar respuesta al técnico
-                    </button>
-                  </div>
-                </div>
-              )}
-            </section>
-
-            {/* Confirmación de cierre */}
-            {(seleccionado.estado !== "resuelto" || !seleccionado.confirmado) && (
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[#313652]">
-                    <CheckCircle2 className="h-4 w-4" />
-                  </span>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-bold text-slate-800">¿Tu problema quedó resuelto?</h3>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                      Si ya conseguiste solucionar el inconveniente y trabajar normalmente, confirma el
-                      cierre para calificar la atención.
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                      Si aún necesitas ayuda, puedes seguir respondiendo al técnico.
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          actualizarTicket(seleccionado.id, { estado: "resuelto", confirmado: true });
-                          mostrarToast("¡Gracias! El caso se marcó como resuelto");
-                        }}
-                        className="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-emerald-600"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Confirmar que se ha resuelto mi problema
-                      </button>
-                      {seleccionado.estado === "resuelto" && (
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[#313652]">
+                      <CheckCircle2 className="h-4 w-4" />
+                    </span>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-slate-800">
+                        ¿Tu problema quedó resuelto?
+                      </h3>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                        Si ya conseguiste solucionar el inconveniente y trabajar
+                        normalmente, puedes cerrar esta solicitud. Ten en cuenta
+                        que{" "}
+                        <strong className="font-semibold text-slate-800">
+                          una vez cerrado, el ticket no podrá reabrirse
+                        </strong>
+                        .
+                      </p>
+                      <div className="mt-4">
                         <button
                           type="button"
-                          onClick={() => {
-                            actualizarTicket(seleccionado.id, { estado: "abierto", confirmado: false });
-                            mostrarToast("Caso reabierto");
-                          }}
-                          className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          onClick={() => setTicketACerrar(seleccionado)}
+                          disabled={
+                            actionModal.open && actionModal.status === "loading"
+                          }
+                          className="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-emerald-600 disabled:opacity-60"
                         >
-                          Reabrir caso
+                          <CheckCircle2 className="h-4 w-4" />
+                          Cerrar ticket y confirmar solución
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </section>
-            )}
+                </section>
+              )}
 
-            {seleccionado.estado === "resuelto" && seleccionado.confirmado && (
-              <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Caso cerrado: confirmaste que el problema quedó resuelto.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    actualizarTicket(seleccionado.id, { estado: "abierto", confirmado: false });
-                    mostrarToast("Caso reabierto");
-                  }}
-                  className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                >
-                  Reabrir caso
-                </button>
-              </section>
-            )}
-          </div>
-        )}
-      </div>
+              {/* Banner cuando el ticket ya está cerrado/resuelto */}
+              {seleccionado.estado === "resuelto" && (
+                <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                  <div className="space-y-1">
+                    <p className="flex items-center gap-2 text-xs font-bold text-emerald-800">
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                      Este ticket se encuentra cerrado y no puede ser reabierto.
+                    </p>
+                    <p className="text-xs text-emerald-700">
+                      Si el inconveniente persiste o necesitas soporte adicional,
+                      por favor genera una nueva solicitud.
+                    </p>
+                  </div>
+                  <Link
+                    href="/portal/tickets/crear"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#313652] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#262a40]"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Crear nuevo ticket
+                  </Link>
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

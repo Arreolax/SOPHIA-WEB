@@ -83,14 +83,13 @@ function LoginContent() {
           .replace(/[\u0300-\u036f]/g, "")
           .toLowerCase()
           .trim();
-        const isTecnicoOrAdmin =
-          cleanRole === "tecnico" ||
-          cleanRole === "admin" ||
-          cleanRole.includes("tecnic") ||
-          cleanRole.includes("admin");
         const targetUrl =
           data.redirectTo ||
-          (isTecnicoOrAdmin ? "/portal/dashboard" : "/soporte/dashboard");
+          (cleanRole.includes("admin")
+            ? "/web"
+            : cleanRole.includes("tecnic")
+              ? "/soporte/dashboard"
+              : "/portal/dashboard");
 
         setTimeout(() => {
           router.push(targetUrl);

@@ -1,10 +1,12 @@
-# SOPHIA Web
+<div align="center">
+
+  <h1>SOPHIA WEB</h1>
 
   <img src="https://img.shields.io/badge/En%20Desarrollo-%20?style=flat&label=Estado&labelColor=purple&color=red">
   <img src="https://img.shields.io/badge/Next.js-Framework-green?style=flat&labelColor=purple&logo=next.js&logoColor=white">
   <img src="https://img.shields.io/badge/PostgreSQL-DataBase-green?style=flat&labelColor=purple&logo=postgresql&logoColor=white">
 
-<hr>
+</div>
 
 <h2>Desarrolladores</h2>
 <ul>

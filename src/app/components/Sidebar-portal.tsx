@@ -11,10 +11,10 @@ import {
   PieChart,
   LogOut,
   User,
-  CheckCircle2, 
-  AlertCircle, 
+  CheckCircle2,
+  AlertCircle,
   ShieldCheck,
-  Wrench,
+  UserCheck,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -23,17 +23,12 @@ const navItems = [
   { name: "Mis Tickets", href: "/soporte/ticketssTec", icon: Ticket },
   { name: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
   { name: "Reportes", href: "/portal/reports", icon: PieChart },
-  { name: "Menu del Portal", href: "/portal", icon: ShieldCheck}
+  { name: "Menu de los usuarios", href: "/portal", icon: ShieldCheck },
 ];
 
 const renderRoleIcon = (role: string) => {
   const norm = role?.toLowerCase() || "";
-  if (norm.includes("admin")) {
-    return <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />;
-  }
-  if (norm.includes("tecnic")) {
-    return <Wrench className="w-3.5 h-3.5 text-blue-600 shrink-0" />;
-  }
+  return <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />;
 };
 
 const getNavHref = (name: string, href: string, role: string) => {
@@ -64,23 +59,23 @@ export default function Sidebar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [userInfo, setUserInfo] = useState({
     name: "Cargando...",
-    lastname: "",
+    username: "",
     role: "",
   });
   const [notification, setNotification] = useState({
     show: false,
     message: "",
-    type: "success", 
+    type: "success",
   });
 
   const showNotification = (message: string, type: "success" | "error") => {
     setNotification({ show: true, message, type });
-    
+
     setTimeout(() => {
-      setNotification(prev => ({ ...prev, show: false }));
+      setNotification((prev) => ({ ...prev, show: false }));
     }, 3000);
   };
-  
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -89,14 +84,14 @@ export default function Sidebar() {
           const data = await response.json();
           setUserInfo({
             name: data.name || "",
-            lastname: data.lastname || "",
+            username: data.username || "",
             role: data.role || "",
           });
         } else {
-          setUserInfo({ name: "Invitado", lastname: "", role: "" });
+          setUserInfo({ name: "Invitado", username: "Invitado", role: "" });
         }
       } catch (error) {
-        setUserInfo({ name: "Invitado", lastname: "", role: "" });
+        setUserInfo({ name: "Invitado", username: "Invitado", role: "" });
       }
     };
 
@@ -184,8 +179,8 @@ export default function Sidebar() {
                         setIsMenuOpen(false);
 
                         setTimeout(() => {
-                          setNotification(prev => ({ ...prev, show: false })); 
-                          router.push('/login');
+                          setNotification((prev) => ({ ...prev, show: false }));
+                          router.push("/login");
                           router.refresh();
                         }, 1500);
                       } else {
@@ -221,15 +216,17 @@ export default function Sidebar() {
                 />
               </div>
               <div className="flex flex-col min-w-0">
-              <span className="text-sm font-medium text-white truncate capitalize">
-                {userInfo.name} {userInfo.lastname}
-              </span>
+                <span className="text-sm font-medium text-white truncate">
+                  {userInfo.name}
+                </span>
 
-              <div className="flex items-center gap-1.5 text-xs text-gray-400 capitalize mt-0.5">
-                {renderRoleIcon(userInfo.role)}
-                <span className="truncate">{userInfo.role || "Cargando..."}</span>
+                <div className="flex items-center gap-1.5 text-xs text-gray-400 capitalize mt-0.5">
+                  {renderRoleIcon(userInfo.role)}
+                  <span className="truncate">
+                    {userInfo.role || "Cargando..."}
+                  </span>
+                </div>
               </div>
-            </div>
             </div>
           </div>
         </div>

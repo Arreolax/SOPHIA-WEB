@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowUpRight,
@@ -22,6 +24,7 @@ import {
   Link2,
   List,
   ListOrdered,
+  Loader2,
   Mail,
   Network,
   Paperclip,
@@ -34,9 +37,8 @@ import {
   Timer,
   Trash2,
   UploadCloud,
-  HardDrive,
-  AppWindow,
-  KeyRound,
+  Tag,
+  XCircle,
 } from "lucide-react";
 
 /* ---------- Configuración ---------- */
@@ -45,47 +47,18 @@ const MAX_ARCHIVOS = 5;
 const MAX_MB = 10;
 const TIPOS_OK = ["application/pdf", "image/jpeg", "image/png"];
 
-const CATEGORIAS: Record<
-  string,
-  { icono: React.ReactNode; subcategorias: string[] }
-> = {
-  "Redes y Conectividad": {
-    icono: <Network className="h-4 w-4" />,
-    subcategorias: [
-      "VPN y Conexión Remota (AnyConnect)",
-      "Wi-Fi corporativo",
-      "Internet / Red cableada",
-      "Acceso a recursos compartidos",
-    ],
-  },
-  "Hardware y Equipos": {
-    icono: <HardDrive className="h-4 w-4" />,
-    subcategorias: [
-      "Laptop / Computadora",
-      "Monitor y periféricos",
-      "Impresoras",
-      "Solicitud de equipo nuevo",
-    ],
-  },
-  "Software y Aplicaciones": {
-    icono: <AppWindow className="h-4 w-4" />,
-    subcategorias: [
-      "Instalación de software",
-      "Error en aplicación",
-      "Licencias",
-      "Correo y calendario",
-    ],
-  },
-  "Accesos y Seguridad": {
-    icono: <KeyRound className="h-4 w-4" />,
-    subcategorias: [
-      "Restablecer contraseña",
-      "Permisos y accesos",
-      "Autenticación multifactor",
-      "Incidente de seguridad",
-    ],
-  },
+type CategoriaDB = {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
 };
+
+const TIPOS_TICKET = [
+  { id: "INCIDENTE", label: "Incidente / Falla" },
+  { id: "REQUERIMIENTO", label: "Solicitud / Requerimiento" },
+  { id: "CONSULTA", label: "Consulta / Soporte" },
+];
 
 const UBICACIONES = [
   { id: "oficina", label: "Sede Central / Oficina", icono: <Building2 className="h-4 w-4" /> },
@@ -94,30 +67,22 @@ const UBICACIONES = [
 ];
 
 const IMPACTO = [
-  { id: "bajo", titulo: "Bajo", desc: "Solo afecta a una persona sin bloquear tareas", dot: "bg-slate-400", rojo: false },
-  { id: "medio", titulo: "Medio", desc: "Dificulta tareas, pero hay workaround", dot: "bg-[#313652]", rojo: false },
-  { id: "alto", titulo: "Alto", desc: "Afecta a todo el departamento o flujo crítico", dot: "bg-amber-500", rojo: false },
-  { id: "critico", titulo: "Crítico", desc: "Parada de operación total de la empresa", dot: "bg-red-500", rojo: true },
+  { id: "LOW", titulo: "Bajo", desc: "Solo afecta a una persona sin bloquear tareas", dot: "bg-slate-400", rojo: false },
+  { id: "MEDIUM", titulo: "Medio", desc: "Dificulta tareas, pero hay workaround", dot: "bg-[#313652]", rojo: false },
+  { id: "HIGH", titulo: "Alto", desc: "Afecta a todo el departamento o flujo crítico", dot: "bg-amber-500", rojo: false },
+  { id: "CRITICAL", titulo: "Crítico", desc: "Parada de operación total de la empresa", dot: "bg-red-500", rojo: true },
 ];
 
 const URGENCIA = [
-  { id: "baja", titulo: "Baja", desc: "Atención requerida en más de 48 horas", dot: "bg-slate-400", rojo: false },
-  { id: "media", titulo: "Media", desc: "Atención recomendada dentro de la jornada", dot: "bg-[#313652]", rojo: false },
-  { id: "alta", titulo: "Alta", desc: "Atención inmediata, urgente en 4 horas", dot: "bg-amber-500", rojo: false },
-  { id: "critica", titulo: "Crítica", desc: "Respuesta inmediata < 30 min (línea roja)", dot: "bg-red-500", rojo: true },
+  { id: "LOW", titulo: "Baja", desc: "Atención requerida en más de 48 horas", dot: "bg-slate-400", rojo: false },
+  { id: "MEDIUM", titulo: "Media", desc: "Atención recomendada dentro de la jornada", dot: "bg-[#313652]", rojo: false },
+  { id: "HIGH", titulo: "Alta", desc: "Atención inmediata, urgente en 4 horas", dot: "bg-amber-500", rojo: false },
+  { id: "CRITICAL", titulo: "Crítica", desc: "Respuesta inmediata < 30 min (línea roja)", dot: "bg-red-500", rojo: true },
 ];
-
-const SOLICITANTE = {
-  nombre: "Elena Morales",
-  area: "Marketing & Growth • Ext. 204",
-  dispositivo: 'MacBook Pro 14" M',
-  correo: "elena.morales@company.com",
-  avatar: "/images/avatar.jpg",
-};
 
 const ARTICULOS = [
   { titulo: "Solución a fallos de conexión en Cisco AnyConnect VPN", meta: "3 min de lectura", extra: "94% de éxito" },
-  { titulo: "Cómo restablecer certificados y credenciales de acceso remoto", meta: "5 min de lectura", extra: "Paso a paso macOS" },
+  { titulo: "Cómo restablecer certificados y credenciales de acceso remoto", meta: "5 min de lectura", extra: "Paso a paso" },
 ];
 
 type Adjunto = {
@@ -126,12 +91,28 @@ type Adjunto = {
   progreso: number;
 };
 
-type Errores = Partial<Record<"titulo" | "categoria" | "subcategoria" | "descripcion", string>>;
+type Errores = Partial<Record<"titulo" | "categoria" | "tipo" | "descripcion", string>>;
+
+type ModalEstado = {
+  abierto: boolean;
+  tipo: "loading" | "success" | "error";
+  titulo: string;
+  mensaje: string;
+};
 
 const formatoTamano = (bytes: number) =>
   bytes >= 1024 * 1024
     ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
     : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+function calcularPrioridad(impact: string, urgency: string): string {
+  const niveles: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
+  const score = Math.max(niveles[impact] || 1, niveles[urgency] || 1);
+  if (score === 4) return "CRITICAL";
+  if (score === 3) return "HIGH";
+  if (score === 2) return "MEDIUM";
+  return "LOW";
+}
 
 /* ---------- Pequeños componentes ---------- */
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -174,13 +155,15 @@ function StepHeader({
 function Label({
   htmlFor,
   children,
+  required = true,
 }: {
   htmlFor?: string;
   children: React.ReactNode;
+  required?: boolean;
 }) {
   return (
     <label htmlFor={htmlFor} className="mb-1.5 block text-xs font-semibold text-slate-700">
-      {children} <span className="text-red-500">*</span>
+      {children} {required && <span className="text-red-500">*</span>}
     </label>
   );
 }
@@ -226,19 +209,293 @@ function OpcionNivel({
   );
 }
 
+/* ---------- Modal de Envío ---------- */
+function ModalEnvio({
+  estado,
+  onCerrar,
+}: {
+  estado: ModalEstado;
+  onCerrar: () => void;
+}) {
+  if (!estado.abierto) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs transition-opacity"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-envio-titulo"
+    >
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl">
+        {estado.tipo === "loading" && (
+          <div className="flex flex-col items-center py-4">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-[#313652]">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+            <h3 id="modal-envio-titulo" className="text-base font-bold text-slate-800">
+              {estado.titulo}
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{estado.mensaje}</p>
+          </div>
+        )}
+
+        {estado.tipo === "success" && (
+          <div className="flex flex-col items-center py-4">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <h3 id="modal-envio-titulo" className="text-base font-bold text-slate-800">
+              {estado.titulo}
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{estado.mensaje}</p>
+            <div className="mt-4 flex items-center gap-2 text-[11px] font-medium text-emerald-700">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>Redirigiendo a tus solicitudes...</span>
+            </div>
+          </div>
+        )}
+
+        {estado.tipo === "error" && (
+          <div className="flex flex-col items-center py-2">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600">
+              <XCircle className="h-8 w-8" />
+            </div>
+            <h3 id="modal-envio-titulo" className="text-base font-bold text-slate-800">
+              {estado.titulo}
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{estado.mensaje}</p>
+            <button
+              type="button"
+              onClick={onCerrar}
+              className="mt-5 w-full rounded-xl bg-[#313652] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#262a40]"
+            >
+              Entendido, revisar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Skeleton Loader ---------- */
+function CrearSolicitudSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-6xl animate-pulse" aria-busy="true" aria-label="Cargando formulario">
+      {/* Breadcrumb */}
+      <div className="mb-5 flex items-center gap-2">
+        <div className="h-4 w-14 rounded bg-slate-200" />
+        <div className="h-3 w-3 rounded bg-slate-200" />
+        <div className="h-4 w-24 rounded bg-slate-200" />
+        <div className="h-3 w-3 rounded bg-slate-200" />
+        <div className="h-5 w-28 rounded-md bg-slate-200" />
+      </div>
+
+      {/* Encabezado */}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-20 rounded bg-slate-200" />
+            <div className="h-4 w-32 rounded bg-slate-200" />
+          </div>
+          <div className="h-8 w-80 max-w-full rounded-lg bg-slate-200" />
+          <div className="h-4 w-96 max-w-full rounded bg-slate-200" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-44 rounded-xl bg-slate-200" />
+          <div className="h-10 w-48 rounded-xl bg-slate-200" />
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+        {/* Columna Formulario */}
+        <div className="flex flex-col gap-6">
+          {/* Paso 1 Skeleton */}
+          <Card>
+            <div className="mb-5 flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-slate-200" />
+                <div className="space-y-2">
+                  <div className="h-4 w-52 rounded bg-slate-200" />
+                  <div className="h-3 w-40 rounded bg-slate-200" />
+                </div>
+              </div>
+              <div className="h-6 w-24 rounded-md bg-slate-200" />
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <div className="mb-2 flex justify-between">
+                  <div className="h-3.5 w-36 rounded bg-slate-200" />
+                  <div className="h-3 w-24 rounded bg-slate-200" />
+                </div>
+                <div className="h-10 w-full rounded-lg bg-slate-200" />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <div className="mb-2 h-3.5 w-36 rounded bg-slate-200" />
+                  <div className="h-10 w-full rounded-lg bg-slate-200" />
+                </div>
+                <div>
+                  <div className="mb-2 h-3.5 w-32 rounded bg-slate-200" />
+                  <div className="h-10 w-full rounded-lg bg-slate-200" />
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 h-3.5 w-48 rounded bg-slate-200" />
+                <div className="h-10 w-full rounded-lg bg-slate-200" />
+              </div>
+
+              <div>
+                <div className="mb-2 h-3.5 w-44 rounded bg-slate-200" />
+                <div className="flex flex-wrap gap-2">
+                  <div className="h-9 w-44 rounded-lg bg-slate-200" />
+                  <div className="h-9 w-44 rounded-lg bg-slate-200" />
+                  <div className="h-9 w-40 rounded-lg bg-slate-200" />
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Paso 2 Skeleton */}
+          <Card>
+            <div className="mb-5 flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-slate-200" />
+                <div className="space-y-2">
+                  <div className="h-4 w-56 rounded bg-slate-200" />
+                  <div className="h-3 w-48 rounded bg-slate-200" />
+                </div>
+              </div>
+              <div className="h-6 w-24 rounded-md bg-slate-200" />
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <div className="mb-2 h-3.5 w-36 rounded bg-slate-200" />
+                <div className="h-40 w-full rounded-lg bg-slate-200" />
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <div className="mb-2 h-3.5 w-32 rounded bg-slate-200" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="h-20 rounded-xl bg-slate-200" />
+                    <div className="h-20 rounded-xl bg-slate-200" />
+                    <div className="h-20 rounded-xl bg-slate-200" />
+                    <div className="h-20 rounded-xl bg-slate-200" />
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2 h-3.5 w-32 rounded bg-slate-200" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="h-20 rounded-xl bg-slate-200" />
+                    <div className="h-20 rounded-xl bg-slate-200" />
+                    <div className="h-20 rounded-xl bg-slate-200" />
+                    <div className="h-20 rounded-xl bg-slate-200" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Paso 3 Skeleton */}
+          <Card>
+            <div className="mb-5 flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-slate-200" />
+                <div className="space-y-2">
+                  <div className="h-4 w-52 rounded bg-slate-200" />
+                  <div className="h-3 w-64 rounded bg-slate-200" />
+                </div>
+              </div>
+              <div className="h-6 w-24 rounded-md bg-slate-200" />
+            </div>
+            <div className="h-36 w-full rounded-xl bg-slate-200" />
+          </Card>
+        </div>
+
+        {/* Columna Lateral Skeleton */}
+        <aside className="flex flex-col gap-6">
+          <Card className="!p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="h-3 w-32 rounded bg-slate-200" />
+              <div className="h-3 w-12 rounded bg-slate-200" />
+            </div>
+            <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
+              <div className="h-9 w-9 shrink-0 rounded-full bg-slate-200" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 w-28 rounded bg-slate-200" />
+                <div className="h-2.5 w-20 rounded bg-slate-200" />
+              </div>
+            </div>
+            <div className="mt-2 h-8 w-full rounded-lg bg-slate-200" />
+          </Card>
+
+          <Card className="!p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-slate-200" />
+              <div className="h-3.5 w-36 rounded bg-slate-200" />
+            </div>
+            <div className="mb-3 space-y-1.5">
+              <div className="h-3 w-full rounded bg-slate-200" />
+              <div className="h-3 w-4/5 rounded bg-slate-200" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-16 w-full rounded-xl bg-slate-200" />
+              <div className="h-16 w-full rounded-xl bg-slate-200" />
+            </div>
+          </Card>
+
+          <Card className="!p-5">
+            <div className="mb-3 h-3 w-36 rounded bg-slate-200" />
+            <div className="space-y-2">
+              <div className="h-14 w-full rounded-xl bg-slate-200" />
+              <div className="h-14 w-full rounded-xl bg-slate-200" />
+            </div>
+          </Card>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Página ---------- */
 export default function CrearSolicitudPage() {
+  const router = useRouter();
+
+  const [categoriasDB, setCategoriasDB] = useState<CategoriaDB[]>([]);
+  const [cargandoPagina, setCargandoPagina] = useState(true);
+
+  const [solicitante, setSolicitante] = useState({
+    nombre: "",
+    area: "Portal de Usuario",
+    correo: "",
+    avatar: "/images/avatar.jpg",
+  });
+
   const [titulo, setTitulo] = useState("");
-  const [categoria, setCategoria] = useState("");
+  const [categoriaId, setCategoriaId] = useState("");
+  const [tipo, setTipo] = useState("INCIDENTE");
   const [subcategoria, setSubcategoria] = useState("");
-  const [ubicacion, setUbicacion] = useState("remoto");
+  const [ubicacion, setUbicacion] = useState("oficina");
   const [descripcion, setDescripcion] = useState("");
-  const [impacto, setImpacto] = useState("medio");
-  const [urgencia, setUrgencia] = useState("media");
+  const [impacto, setImpacto] = useState("LOW");
+  const [urgencia, setUrgencia] = useState("LOW");
   const [adjuntos, setAdjuntos] = useState<Adjunto[]>([]);
   const [arrastrando, setArrastrando] = useState(false);
   const [errores, setErrores] = useState<Errores>({});
   const [enviando, setEnviando] = useState(false);
+
+  const [modalEnvio, setModalEnvio] = useState<ModalEstado>({
+    abierto: false,
+    tipo: "loading",
+    titulo: "",
+    mensaje: "",
+  });
+
   const [toast, setToast] = useState<{ show: boolean; msg: string; type: "success" | "error" }>({
     show: false,
     msg: "",
@@ -253,7 +510,47 @@ export default function CrearSolicitudPage() {
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 3500);
   };
 
-  /* Progreso simulado de subida (reemplázalo por la subida real a Supabase Storage) */
+  const cerrarModal = () => {
+    if (modalEnvio.tipo === "loading") return;
+    setModalEnvio((prev) => ({ ...prev, abierto: false }));
+  };
+
+  /* Cargar categorías desde /api/categories y perfil desde /api/me */
+  useEffect(() => {
+    const cargarDatosIniciales = async () => {
+      try {
+        const [resCat, resMe] = await Promise.all([
+          fetch("/api/categories"),
+          fetch("/api/me"),
+        ]);
+
+        if (resCat.ok) {
+          const dataCat = await resCat.json();
+          setCategoriasDB(dataCat.categories || []);
+        } else {
+          mostrarToast("No se pudieron cargar las categorías", "error");
+        }
+
+        if (resMe.ok) {
+          const dataMe = await resMe.json();
+          setSolicitante({
+            nombre: dataMe.name || dataMe.username || "Usuario",
+            area: [dataMe.department, dataMe.area].filter(Boolean).join(" • ") || "Usuario registrado",
+            correo: dataMe.email || "",
+            avatar: "/images/avatar.jpg",
+          });
+        }
+      } catch (err) {
+        console.error("Error cargando datos iniciales:", err);
+      } finally {
+        setCargandoPagina(false);
+      }
+    };
+
+    cargarDatosIniciales();
+  }, []);
+
+  /* Progreso simulado de subida */
   useEffect(() => {
     if (!adjuntos.some((a) => a.progreso < 100)) return;
     const timer = setInterval(() => {
@@ -321,8 +618,8 @@ export default function CrearSolicitudPage() {
   const validar = (): boolean => {
     const err: Errores = {};
     if (titulo.trim().length < 5) err.titulo = "Escribe un título de al menos 5 caracteres.";
-    if (!categoria) err.categoria = "Selecciona una categoría.";
-    if (!subcategoria) err.subcategoria = "Selecciona una subcategoría.";
+    if (!categoriaId) err.categoria = "Selecciona una categoría.";
+    if (!tipo) err.tipo = "Selecciona un tipo de solicitud.";
     if (descripcion.trim().length < 20)
       err.descripcion = "Describe el problema con al menos 20 caracteres.";
     setErrores(err);
@@ -331,12 +628,13 @@ export default function CrearSolicitudPage() {
 
   const limpiar = () => {
     setTitulo("");
-    setCategoria("");
+    setCategoriaId("");
+    setTipo("INCIDENTE");
     setSubcategoria("");
-    setUbicacion("remoto");
+    setUbicacion("oficina");
     setDescripcion("");
-    setImpacto("medio");
-    setUrgencia("media");
+    setImpacto("LOW");
+    setUrgencia("LOW");
     setAdjuntos([]);
     setErrores({});
   };
@@ -350,21 +648,65 @@ export default function CrearSolicitudPage() {
       mostrarToast("Espera a que terminen de subir los archivos", "error");
       return;
     }
+
     setEnviando(true);
+    setModalEnvio({
+      abierto: true,
+      tipo: "loading",
+      titulo: "Creando solicitud...",
+      mensaje: "Por favor espera mientras registramos tu ticket en la mesa de ayuda.",
+    });
+
     try {
-      // TODO: conecta aquí tu API, por ejemplo:
-      // const body = { titulo, categoria, subcategoria, ubicacion, descripcion, impacto, urgencia };
-      // const res = await fetch("/api/tickets", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(body),
-      // });
-      // if (!res.ok) throw new Error();
-      await new Promise((r) => setTimeout(r, 800)); // simulación
-      mostrarToast("Solicitud enviada. Recibirás un acuse en tu correo.", "success");
+      const ubicacionLabel =
+        UBICACIONES.find((u) => u.id === ubicacion)?.label || ubicacion;
+
+      const priority = calcularPrioridad(impacto, urgencia);
+
+      const response = await fetch("/api/tickets", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: titulo.trim(),
+          description: descripcion,
+          modality: ubicacionLabel,
+          type: tipo,
+          subcategory: subcategoria.trim() || null,
+          impact: impacto,
+          urgency: urgencia,
+          priority,
+          category_id: categoriaId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || result.detalle || "No se pudo crear el ticket");
+      }
+
+      localStorage.removeItem("ticket-borrador");
       limpiar();
-    } catch {
-      mostrarToast("No se pudo enviar la solicitud", "error");
+
+      setModalEnvio({
+        abierto: true,
+        tipo: "success",
+        titulo: "¡Solicitud creada con éxito!",
+        mensaje: "Tu ticket ha sido registrado correctamente y asignado al equipo de soporte.",
+      });
+
+      setTimeout(() => {
+        router.push("/portal/tickets/consultarMT");
+        router.refresh();
+      }, 1500);
+    } catch (err: any) {
+      setModalEnvio({
+        abierto: true,
+        tipo: "error",
+        titulo: "Error al crear la solicitud",
+        mensaje: err.message || "Ocurrió un problema inesperado al enviar el ticket. Inténtalo de nuevo.",
+      });
     } finally {
       setEnviando(false);
     }
@@ -374,7 +716,16 @@ export default function CrearSolicitudPage() {
     try {
       localStorage.setItem(
         "ticket-borrador",
-        JSON.stringify({ titulo, categoria, subcategoria, ubicacion, descripcion, impacto, urgencia }),
+        JSON.stringify({
+          titulo,
+          categoriaId,
+          tipo,
+          subcategoria,
+          ubicacion,
+          descripcion,
+          impacto,
+          urgencia,
+        }),
       );
       mostrarToast("Borrador guardado en este navegador", "success");
     } catch {
@@ -389,23 +740,32 @@ export default function CrearSolicitudPage() {
       if (!raw) return;
       const d = JSON.parse(raw);
       setTitulo(d.titulo ?? "");
-      setCategoria(d.categoria ?? "");
+      setCategoriaId(d.categoriaId ?? "");
+      setTipo(d.tipo ?? "INCIDENTE");
       setSubcategoria(d.subcategoria ?? "");
-      setUbicacion(d.ubicacion ?? "remoto");
+      setUbicacion(d.ubicacion ?? "oficina");
       setDescripcion(d.descripcion ?? "");
-      setImpacto(d.impacto ?? "medio");
-      setUrgencia(d.urgencia ?? "media");
+      setImpacto(d.impacto ?? "LOW");
+      setUrgencia(d.urgencia ?? "LOW");
     } catch {
       /* sin borrador */
     }
   }, []);
 
-  const subcategorias = categoria ? CATEGORIAS[categoria].subcategorias : [];
+  if (cargandoPagina) {
+    return <CrearSolicitudSkeleton />;
+  }
+
+  const categoriaSeleccionada = categoriasDB.find((c) => c.id === categoriaId);
+
   const inputBase =
     "w-full rounded-lg border bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#313652] focus:bg-white";
 
   return (
     <div className="mx-auto w-full max-w-6xl">
+      {/* Modal de estado al enviar */}
+      <ModalEnvio estado={modalEnvio} onCerrar={cerrarModal} />
+
       {/* Toast */}
       <div
         className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg px-6 py-3 text-white shadow-xl transition-all duration-500 ${
@@ -418,14 +778,26 @@ export default function CrearSolicitudPage() {
 
       {/* Breadcrumb */}
       <nav className="mb-5 flex items-center gap-2 text-xs text-slate-500">
-        <Home className="h-3.5 w-3.5" />
-        <span>Inicio</span>
+        <Link
+          href="/portal/dashboard"
+          className="flex items-center gap-1.5 transition-colors hover:text-slate-800"
+        >
+          <Home className="h-3.5 w-3.5" />
+          <span>Inicio</span>
+        </Link>
+
         <ChevronRight className="h-3 w-3" />
-        <span>Mis Solicitudes</span>
+
+        <Link href="/portal/tickets/consultarMT" className="transition-colors hover:text-slate-800">
+          Mis Solicitudes
+        </Link>
         <ChevronRight className="h-3 w-3" />
-        <span className="rounded-md bg-slate-200 px-2 py-0.5 font-semibold text-slate-700">
+        <Link
+          href="/portal/tickets/crear"
+          className="rounded-md bg-slate-200 px-2 py-0.5 font-semibold text-slate-700"
+        >
           Crear Solicitud
-        </span>
+        </Link>
       </nav>
 
       {/* Encabezado */}
@@ -449,13 +821,13 @@ export default function CrearSolicitudPage() {
               <p className="text-xs font-bold text-slate-800">&lt; 2 horas hábiles</p>
             </div>
           </div>
-          <button
-            type="button"
+          <Link
+            href="/soporte/knowledge"
             className="flex items-center gap-2 rounded-xl bg-indigo-100 px-3 py-2.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-200"
           >
             <BookOpen className="h-4 w-4" />
             ¿Duda recurrente? Consultar KB
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -468,7 +840,7 @@ export default function CrearSolicitudPage() {
               icon={<PencilLine className="h-4 w-4" />}
               titulo="Paso 1: Información Básica del Incidente"
               subtitulo="Describe de forma concisa el motivo del ticket"
-              paso="Paso 1 de 3"
+              paso="Sección 1 de 3"
             />
 
             <div className="space-y-5">
@@ -496,54 +868,80 @@ export default function CrearSolicitudPage() {
                   <Label htmlFor="categoria">Categoría del Servicio</Label>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-                      {categoria ? CATEGORIAS[categoria].icono : <Network className="h-4 w-4" />}
+                      <Network className="h-4 w-4" />
                     </span>
                     <select
                       id="categoria"
-                      value={categoria}
-                      onChange={(e) => {
-                        setCategoria(e.target.value);
-                        setSubcategoria("");
-                      }}
+                      value={categoriaId}
+                      onChange={(e) => setCategoriaId(e.target.value)}
                       className={`${inputBase} appearance-none pl-9 pr-9 ${
                         errores.categoria ? "border-red-400" : "border-slate-200"
                       }`}
                     >
-                      <option value="">Selecciona una categoría</option>
-                      {Object.keys(CATEGORIAS).map((c) => (
-                        <option key={c} value={c}>{c}</option>
+                      <option value="">
+                        {categoriasDB.length === 0
+                          ? "No hay categorías disponibles"
+                          : "Selecciona una categoría"}
+                      </option>
+                      {categoriasDB.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
                       ))}
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   </div>
+                  {categoriaSeleccionada?.description && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {categoriaSeleccionada.description}
+                    </p>
+                  )}
                   <ErrorText msg={errores.categoria} />
                 </div>
 
                 <div>
-                  <Label htmlFor="subcategoria">Subcategoría específica</Label>
+                  <Label htmlFor="tipo">Tipo de Solicitud</Label>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-                      <Shield className="h-4 w-4" />
+                      <Tag className="h-4 w-4" />
                     </span>
                     <select
-                      id="subcategoria"
-                      value={subcategoria}
-                      disabled={!categoria}
-                      onChange={(e) => setSubcategoria(e.target.value)}
-                      className={`${inputBase} appearance-none pl-9 pr-9 disabled:cursor-not-allowed disabled:opacity-60 ${
-                        errores.subcategoria ? "border-red-400" : "border-slate-200"
+                      id="tipo"
+                      value={tipo}
+                      onChange={(e) => setTipo(e.target.value)}
+                      className={`${inputBase} appearance-none pl-9 pr-9 ${
+                        errores.tipo ? "border-red-400" : "border-slate-200"
                       }`}
                     >
-                      <option value="">
-                        {categoria ? "Selecciona una subcategoría" : "Elige primero una categoría"}
-                      </option>
-                      {subcategorias.map((s) => (
-                        <option key={s} value={s}>{s}</option>
+                      {TIPOS_TICKET.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
                       ))}
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   </div>
-                  <ErrorText msg={errores.subcategoria} />
+                  <ErrorText msg={errores.tipo} />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="subcategoria" required={false}>
+                  Subcategoría o detalle específico (opcional)
+                </Label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                    <Shield className="h-4 w-4" />
+                  </span>
+                  <input
+                    id="subcategoria"
+                    type="text"
+                    maxLength={100}
+                    value={subcategoria}
+                    onChange={(e) => setSubcategoria(e.target.value)}
+                    placeholder="Ej. VPN AnyConnect, Correo institucional, Impresora piso 2..."
+                    className={`${inputBase} border-slate-200 pl-9`}
+                  />
                 </div>
               </div>
 
@@ -580,7 +978,7 @@ export default function CrearSolicitudPage() {
               icon={<FileText className="h-4 w-4" />}
               titulo="Paso 2: Detalle del Problema e Impacto"
               subtitulo="Explica qué ocurre y cómo repercute en tu operatividad"
-              paso="Paso 2 de 3"
+              paso="Sección 2 de 3"
             />
 
             <div className="space-y-5">
@@ -633,7 +1031,12 @@ export default function CrearSolicitudPage() {
                   <Label>Impacto percibido</Label>
                   <div className="grid grid-cols-2 gap-2">
                     {IMPACTO.map((i) => (
-                      <OpcionNivel key={i.id} item={i} activo={impacto === i.id} onClick={() => setImpacto(i.id)} />
+                      <OpcionNivel
+                        key={i.id}
+                        item={i}
+                        activo={impacto === i.id}
+                        onClick={() => setImpacto(i.id)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -641,7 +1044,12 @@ export default function CrearSolicitudPage() {
                   <Label>Urgencia percibida</Label>
                   <div className="grid grid-cols-2 gap-2">
                     {URGENCIA.map((u) => (
-                      <OpcionNivel key={u.id} item={u} activo={urgencia === u.id} onClick={() => setUrgencia(u.id)} />
+                      <OpcionNivel
+                        key={u.id}
+                        item={u}
+                        activo={urgencia === u.id}
+                        onClick={() => setUrgencia(u.id)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -655,7 +1063,7 @@ export default function CrearSolicitudPage() {
               icon={<Paperclip className="h-4 w-4" />}
               titulo="Paso 3: Evidencias y Archivos Adjuntos"
               subtitulo="Añade capturas de pantalla, extractos de logs o fotos de diagnóstico"
-              paso="Paso 3 de 3"
+              paso="Sección 3 de 3"
             />
 
             <div
@@ -762,31 +1170,30 @@ export default function CrearSolicitudPage() {
               <h3 className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Solicitante identificado
               </h3>
-              <button type="button" className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800">
-                Cambiar <ArrowUpRight className="h-3 w-3" />
-              </button>
+              <Link
+                href="/soporte/profile"
+                className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800"
+              >
+                Perfil <ArrowUpRight className="h-3 w-3" />
+              </Link>
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
               <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-slate-300">
-                <Image src={SOLICITANTE.avatar} alt={SOLICITANTE.nombre} fill sizes="36px" className="object-cover" />
+                <Image src={solicitante.avatar} alt={solicitante.nombre} fill sizes="36px" className="object-cover" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-800">{SOLICITANTE.nombre}</p>
-                <p className="truncate text-[10px] text-slate-500">{SOLICITANTE.area}</p>
+                <p className="text-xs font-bold text-slate-800">{solicitante.nombre}</p>
+                <p className="truncate text-[10px] text-slate-500">{solicitante.area}</p>
               </div>
             </div>
             <dl className="mt-2 space-y-2 text-[11px]">
               <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
                 <dt className="flex items-center gap-1.5 text-slate-500">
-                  <Laptop className="h-3.5 w-3.5" /> Dispositivo registrado
+                  <Mail className="h-3.5 w-3.5" /> Correo
                 </dt>
-                <dd className="font-semibold text-slate-800">{SOLICITANTE.dispositivo}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
-                <dt className="flex items-center gap-1.5 text-slate-500">
-                  <Mail className="h-3.5 w-3.5" /> Correo institucional
-                </dt>
-                <dd className="truncate font-semibold text-slate-800">{SOLICITANTE.correo}</dd>
+                <dd className="truncate font-semibold text-slate-800">
+                  {solicitante.correo || "—"}
+                </dd>
               </div>
             </dl>
           </Card>
@@ -800,7 +1207,9 @@ export default function CrearSolicitudPage() {
             </div>
             <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
               Detectamos artículos recomendados en la Base de Conocimiento para tu consulta sobre{" "}
-              <strong className="text-slate-700">{subcategoria ? subcategoria.split(" (")[0] : "VPN"}</strong>.
+              <strong className="text-slate-700">
+                {categoriaSeleccionada ? categoriaSeleccionada.name : "soporte técnico"}
+              </strong>.
             </p>
             <ul className="space-y-2">
               {ARTICULOS.map((a) => (
@@ -814,7 +1223,8 @@ export default function CrearSolicitudPage() {
                       <ArrowUpRight className="h-3 w-3 shrink-0 text-slate-400" />
                     </div>
                     <p className="mt-1.5 flex items-center gap-1.5 text-[10px] text-slate-500">
-                      <Clock className="h-3 w-3" /> {a.meta} • <span className="font-semibold text-slate-700">{a.extra}</span>
+                      <Clock className="h-3 w-3" /> {a.meta} •{" "}
+                      <span className="font-semibold text-slate-700">{a.extra}</span>
                     </p>
                   </button>
                 </li>

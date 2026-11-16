@@ -12,32 +12,74 @@ function getProfileValue(...values: unknown[]): string {
 
 export async function GET() {
   const cookieStore = await cookies();
-  const token = cookieStore.get("sb-access-token")?.value;
+  let token = cookieStore.get("sb-access-token")?.value;
+  const refreshToken = cookieStore.get("sb-refresh-token")?.value;
 
-  if (!token) {
+  if (!token && !refreshToken) {
     return NextResponse.json({ error: "No hay sesión" }, { status: 401 });
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  let supabase = createClient(supabaseUrl, supabaseKey, {
     global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     },
   });
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  let user = null;
 
-  if (error || !user) {
+  if (token) {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (!error && data.user) {
+      user = data.user;
+    }
+  }
+
+  // Si el access_token expiró o no estaba presente, intentar renovar con sb-refresh-token
+  if (!user && refreshToken) {
+    const { data: refreshed, error: refreshError } =
+      await supabase.auth.refreshSession({ refresh_token: refreshToken });
+
+    if (!refreshError && refreshed.session && refreshed.user) {
+      user = refreshed.user;
+      token = refreshed.session.access_token;
+
+      cookieStore.set({
+        name: "sb-access-token",
+        value: refreshed.session.access_token,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+
+      cookieStore.set({
+        name: "sb-refresh-token",
+        value: refreshed.session.refresh_token,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+
+      supabase = createClient(supabaseUrl, supabaseKey, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      });
+    }
+  }
+
+  if (!user) {
     return NextResponse.json(
-      { error: "Usuario no encontrado" },
-      { status: 404 },
+      { error: "Sesión expirada o usuario no encontrado" },
+      { status: 401 },
     );
   }
 
@@ -112,11 +154,16 @@ export async function GET() {
       user.user_metadata?.role ||
       user.user_metadata?.rol ||
       user.app_metadata?.role ||
-      "user";
+      "usuario";
   }
 
   return NextResponse.json({
-    id: getProfileValue(dbUser?.employee_id, dbUser?.id_empleado) || user.id,
+    id:
+      getProfileValue(
+        dbUser?.id,
+        dbUser?.employee_id,
+        dbUser?.id_empleado,
+      ) || user.id,
     name,
     username,
     role,

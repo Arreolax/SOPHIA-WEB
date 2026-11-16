@@ -20,11 +20,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen w-full bg-[#F4F7FB] text-slate-900 font-sans relative overflow-x-hidden flex flex-col">
-      {/* Efectos de luz difuminada de fondo */}
       <div className="absolute top-[10%] left-[-10%] w-125 h-125 rounded-full bg-[#323454]/10 blur-[130px] pointer-events-none" />
       <div className="absolute bottom-[5%] right-[-10%] w-150 h-150 rounded-full bg-indigo-200/30 blur-[140px] pointer-events-none" />
 
-      {/* Animación de hojas del código anterior */}
       <FallingLeavesWrapper
         className="fixed inset-0 pointer-events-none z-0"
         shapes={["maple", "birch", "oak", "oval"]}
@@ -34,7 +32,6 @@ export default function Home() {
         size={100}
       />
 
-      {/* Barra de navegación superior */}
       <header className="fixed w-full bg-white/85 backdrop-blur-md border-b border-slate-100  top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -60,20 +57,18 @@ export default function Home() {
       </header>
 
       <main className="relative flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pt-28 sm:pt-32 z-10 flex flex-col items-center">
-        {/* Badge superior */}
+
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-200/70 text-[#232946] text-[10px] sm:text-[11px] font-bold tracking-wider uppercase mb-5">
           <span className="w-1.5 h-1.5 rounded-full bg-[#232946]" />
           <span>SOPHIA • IT OPERATIONS & INTELLIGENCE ECOSYSTEM</span>
         </div>
 
-        {/* Título Principal */}
         <h1 className="text-3xl sm:text-4xl md:text-[42px] font-extrabold text-center tracking-tight text-[#1E233A] leading-tight mb-2">
           SOPHIA WEB
         </h1>
 
-        {/* Tarjeta descriptiva central (con línea azul arriba) */}
         <div className="w-full max-w-3xl bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden mb-10">
-          <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+          <div className="h-1.5 w-full bg-linear-to-r from-[#323454] via-[#454873] to-[#323454]" />
           <div className="p-5 sm:p-6 flex items-start gap-4">
             <div className="w-9 h-9 rounded-xl bg-slate-100 text-[#232946] flex items-center justify-center shrink-0 mt-0.5">
               <Sparkles className="w-4 h-4" />
@@ -92,11 +87,10 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Grid de dos columnas: Rectángulos informativos (no cliqueables y con línea azul arriba) */}
         <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Rectángulo 1: Portal de Usuarios */}
+          {/* Rectángulo 1 */}
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[240px]">
-            <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+            <div className="h-1.5 w-full bg-linear-to-r from-[#323454] via-[#454873] to-[#323454]" />
             <div className="p-7 sm:p-8 flex-1 flex flex-col justify-between">
               <div>
                 <div className="w-11 h-11 rounded-xl bg-slate-100 text-[#232946] flex items-center justify-center mb-5">
@@ -113,7 +107,6 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Etiquetas inferiores */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
                   <Clock className="w-3 h-3 text-slate-500" />
@@ -131,9 +124,9 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Rectángulo 2: Consola de Técnicos & Admin */}
+          {/* Rectángulo 2 */}
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_10px_35px_rgba(35,41,70,0.04)] border border-slate-100 overflow-hidden flex flex-col justify-between min-h-[240px]">
-            <div className="h-1.5 w-full bg-gradient-to-r from-[#323454] via-[#454873] to-[#323454]" />
+            <div className="h-1.5 w-full bg-linear-to-r from-[#323454] via-[#454873] to-[#323454]" />
             <div className="p-7 sm:p-8 flex-1 flex flex-col justify-between">
               <div>
                 <div className="w-11 h-11 rounded-xl bg-[#232946] text-white flex items-center justify-center mb-5">
@@ -151,7 +144,6 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Etiquetas inferiores */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100/80 text-slate-600 text-[11px] font-medium">
                   <ListChecks className="w-3 h-3 text-slate-500" />
