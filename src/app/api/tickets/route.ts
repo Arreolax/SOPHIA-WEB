@@ -183,9 +183,13 @@ export async function POST(request: Request) {
       urgency = "LOW",
       priority = "LOW",
       category_id,
+      draft = 0,
     } = body;
 
-    if (!title || !description || !type || !category_id) {
+    const isDraft = Number(draft) === 1;
+
+    // Si es envío definitivo (draft === 0), exigir todos los campos obligatorios
+    if (!isDraft && (!title || !description || !type || !category_id)) {
       return NextResponse.json(
         {
           error:
@@ -195,20 +199,32 @@ export async function POST(request: Request) {
       );
     }
 
+    // Si es borrador (draft === 1), exigir al menos título o descripción
+    if (isDraft && !title?.trim() && !description?.trim()) {
+      return NextResponse.json(
+        {
+          error:
+            "Ingresa al menos un título o una descripción para guardar el borrador",
+        },
+        { status: 400 }
+      );
+    }
+
     const { data: newTicket, error } = await supabase
       .from("ticket")
       .insert({
-        title: title.trim(),
-        description: description.trim(),
-        modality: modality.trim(),
-        type: type.trim(),
+        title: title?.trim() || "Borrador sin título",
+        description: description?.trim() || "",
+        modality: modality ? modality.trim() : "Sede Central / Oficina",
+        type: type ? type.trim() : "INCIDENTE",
         subcategory: subcategory ? subcategory.trim() : null,
         impact: String(impact).toUpperCase(),
         urgency: String(urgency).toUpperCase(),
         priority: String(priority).toUpperCase(),
         status: "OPEN",
-        category_id,
+        category_id: category_id || null,
         created_by: user.id,
+        draft: isDraft ? 1 : 0,
       })
       .select(`
         *,
@@ -224,17 +240,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // Registrar estado inicial en status_history
-    await supabase.from("status_history").insert({
-      ticket_id: newTicket.id,
-      old_status: null,
-      new_status: "OPEN",
-      changed_by: user.id,
-    });
+    // Registrar estado inicial en status_history solo si no es borrador
+    if (!isDraft) {
+      await supabase.from("status_history").insert({
+        ticket_id: newTicket.id,
+        old_status: null,
+        new_status: "OPEN",
+        changed_by: user.id,
+      });
+    }
 
     return NextResponse.json(
       {
-        mensaje: "Ticket creado correctamente",
+        mensaje: isDraft
+          ? "Borrador guardado correctamente"
+          : "Ticket creado correctamente",
         ticket: newTicket,
       },
       { status: 201 }

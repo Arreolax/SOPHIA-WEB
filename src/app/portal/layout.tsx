@@ -13,13 +13,14 @@ export default function DashboardLayout({
       </div>
 
       <main className="relative flex-1 overflow-y-auto p-8">
+
         <FallingLeavesWrapper
           className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
           shapes={["maple", "birch", "oak", "oval"]}
-          count={50}
-          speed={2}
-          wind={-5}
-          size={100}
+          count={25}
+          speed={0}
+          wind={0}
+          size={50}
         />
 
         <div className="relative z-10">

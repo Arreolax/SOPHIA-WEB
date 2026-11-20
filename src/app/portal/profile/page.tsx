@@ -29,6 +29,7 @@ import {
   Search,
   ShieldCheck,
   User,
+  AtSign
 } from "lucide-react";
 
 type PerfilUsuario = {
@@ -63,7 +64,7 @@ const PERFIL_VACIO: PerfilUsuario = {
   emailVerificado: false,
   avatar: "/images/avatar.jpg",
   sede: "",
-  actividad: { creados: "", enProgreso: "", resueltos: "", periodo: "" },
+  actividad: { creados: "6", enProgreso: "", resueltos: "", periodo: "" },
   equipos: [],
   dispositivo: { nombre: "", detalle: "" },
 };
@@ -221,10 +222,167 @@ function EditableField({
   );
 }
 
+/* ---------- Skeleton Loader ---------- */
+function ProfileSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      aria-label="Cargando perfil..."
+      className="animate-pulse"
+    >
+      {/* Título skeleton */}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <div className="h-7 w-64 rounded-lg bg-slate-200" />
+          <div className="h-4 w-80 max-w-full rounded-md bg-slate-200" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-36 rounded-xl bg-slate-200" />
+          <div className="h-9 w-28 rounded-xl bg-slate-200" />
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+        {/* Columna izquierda skeleton */}
+        <Card className="flex flex-col">
+          <div className="flex flex-col items-center">
+            <div className="h-24 w-24 rounded-full bg-slate-200" />
+            <div className="mt-4 h-5 w-44 rounded-md bg-slate-200" />
+            <div className="mt-2 h-3.5 w-32 rounded-md bg-slate-200" />
+            <div className="mt-2.5 h-3.5 w-48 rounded-md bg-slate-200" />
+            <div className="mt-3 h-7 w-36 rounded-full bg-slate-200" />
+          </div>
+
+          <hr className="my-5 border-slate-200" />
+
+          {/* Actividad skeleton */}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="h-3 w-32 rounded bg-slate-200" />
+              <div className="h-4 w-16 rounded-md bg-slate-200" />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[0, 1, 2].map((item) => (
+                <div
+                  key={item}
+                  className="flex flex-col items-center rounded-xl border border-slate-100 p-3"
+                >
+                  <div className="mb-2 h-7 w-7 rounded-lg bg-slate-200" />
+                  <div className="h-5 w-8 rounded bg-slate-200" />
+                  <div className="mt-1.5 h-2.5 w-12 rounded bg-slate-200" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <hr className="my-5 border-slate-200" />
+
+          {/* Equipos skeleton */}
+          <div>
+            <div className="mb-3 h-3 w-28 rounded bg-slate-200" />
+            <div className="flex flex-wrap gap-2">
+              <div className="h-6 w-24 rounded-lg bg-slate-200" />
+              <div className="h-6 w-28 rounded-lg bg-slate-200" />
+              <div className="h-6 w-20 rounded-lg bg-slate-200" />
+            </div>
+          </div>
+
+          <div className="mt-8 h-10 w-full rounded-lg bg-slate-200" />
+        </Card>
+
+        {/* Columna derecha skeleton */}
+        <div className="flex flex-col gap-6">
+          {/* Datos del empleado skeleton */}
+          <Card>
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-slate-200" />
+                <div className="space-y-1.5">
+                  <div className="h-4 w-40 rounded bg-slate-200" />
+                  <div className="h-3 w-64 rounded bg-slate-200" />
+                </div>
+              </div>
+              <div className="h-6 w-20 rounded-md bg-slate-200" />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {[0, 1, 2, 3].map((field) => (
+                <div key={field} className="space-y-2">
+                  <div className="h-3.5 w-32 rounded bg-slate-200" />
+                  <div className="h-10 w-full rounded-lg bg-slate-200" />
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Notificaciones skeleton */}
+            <Card className="flex flex-col">
+              <div className="mb-5 flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-slate-200" />
+                <div className="space-y-1.5">
+                  <div className="h-4 w-44 rounded bg-slate-200" />
+                  <div className="h-3 w-36 rounded bg-slate-200" />
+                </div>
+              </div>
+              <div className="flex flex-1 flex-col gap-5">
+                {[0, 1, 2].map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-center justify-between gap-4"
+                  >
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-4 w-36 rounded bg-slate-200" />
+                      <div className="h-3 w-52 rounded bg-slate-200" />
+                    </div>
+                    <div className="h-6 w-11 shrink-0 rounded-full bg-slate-200" />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 border-t border-slate-100 pt-3">
+                <div className="h-3 w-48 rounded bg-slate-200" />
+              </div>
+            </Card>
+
+            {/* Seguridad skeleton */}
+            <Card className="flex flex-col">
+              <div className="mb-5 flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-slate-200" />
+                <div className="space-y-1.5">
+                  <div className="h-4 w-36 rounded bg-slate-200" />
+                  <div className="h-3 w-40 rounded bg-slate-200" />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="h-14 w-full rounded-xl bg-slate-200" />
+                <div className="h-14 w-full rounded-xl bg-slate-200" />
+              </div>
+              <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3">
+                <div className="h-3 w-24 rounded bg-slate-200" />
+                <div className="h-3 w-32 rounded bg-slate-200" />
+              </div>
+            </Card>
+          </div>
+
+          {/* Barra de guardado skeleton */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="h-4 w-72 rounded bg-slate-200" />
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-36 rounded-lg bg-slate-200" />
+              <div className="h-9 w-36 rounded-lg bg-slate-200" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Página ---------- */
 export default function EmployeeProfilePage() {
   const router = useRouter();
 
+  const [cargando, setCargando] = useState(true);
   const [perfil, setPerfil] = useState<PerfilUsuario>(PERFIL_VACIO);
   const [prefs, setPrefs] = useState<Preferencias>(PREFS_INICIALES);
   const [guardado, setGuardado] = useState<Preferencias>(PREFS_INICIALES);
@@ -274,6 +432,8 @@ export default function EmployeeProfilePage() {
         setGuardado(preferenciasActualizadas);
       } catch {
         setErrorPerfil("No se pudo cargar la información de tu perfil.");
+      } finally {
+        setCargando(false);
       }
     };
 
@@ -396,7 +556,8 @@ export default function EmployeeProfilePage() {
           <button
             type="button"
             onClick={restablecer}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            disabled={cargando}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Restablecer
@@ -404,363 +565,377 @@ export default function EmployeeProfilePage() {
         </div>
       </div>
 
-      {/* Título */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">
-            Configuración de Perfil
-          </h1>
-          <p className="mt-1 max-w-md text-sm text-slate-500">
-            Gestiona tu información laboral básica, preferencias de
-            notificación de tus solicitudes y accesos.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-700">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Activo {perfil.sede && `• ${perfil.sede}`}
-          </div>
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
-            <IdCard className="h-4 w-4 text-[#313652]" />
-            {perfil.id}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        {/* ============ Columna izquierda ============ */}
-        <Card className="flex flex-col">
-          <div className="flex flex-col items-center text-center">
-            <div className="relative">
-              <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-md ring-2 ring-indigo-100">
-                <Image
-                  src={perfil.avatar}
-                  alt={prefs.nombre}
-                  fill
-                  sizes="96px"
-                  className="object-cover"
-                />
-              </div>
-              <button
-                type="button"
-                aria-label="Cambiar foto"
-                className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#313652] text-white shadow hover:bg-[#262a40]"
-              >
-                <Camera className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
-            <h2 className="mt-4 text-lg font-bold text-slate-800">
-              {prefs.nombre}
-            </h2>
-            <p className="mt-1 text-xs text-slate-600">{perfil.puesto}</p>
-            <p className="mt-2 flex items-center gap-1.5 font-mono text-xs text-slate-500">
-              <Mail className="h-3.5 w-3.5" />
-              {perfil.email}
-            </p>
-            <div className="mt-3 flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              {perfil.area}
-            </div>
-          </div>
-
-          <hr className="my-5 border-slate-200" />
-
-          {/* Actividad de soporte */}
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                Actividad de soporte
-              </h3>
-              <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
-                {actividad.periodo}
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="flex flex-col items-center rounded-xl border border-slate-200 p-3 text-center">
-                <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                  <FilePlus2 className="h-4 w-4" />
-                </div>
-                <span className="text-lg font-bold text-slate-800">
-                  {actividad.creados}
-                </span>
-                <span className="text-[10px] text-slate-500">Creados</span>
-              </div>
-              <div className="flex flex-col items-center rounded-xl border border-slate-200 p-3 text-center">
-                <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-500">
-                  <Clock className="h-4 w-4" />
-                </div>
-                <span className="text-lg font-bold text-slate-800">
-                  {actividad.enProgreso}
-                </span>
-                <span className="text-[10px] text-slate-500">En Progreso</span>
-              </div>
-              <div className="flex flex-col items-center rounded-xl border border-slate-200 p-3 text-center">
-                <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                  <CircleCheck className="h-4 w-4" />
-                </div>
-                <span className="text-lg font-bold text-slate-800">
-                  {actividad.resueltos}
-                </span>
-                <span className="text-[10px] text-slate-500">Resueltos</span>
-              </div>
-            </div>
-          </div>
-
-          <hr className="my-5 border-slate-200" />
-
-          {/* Equipos asignados */}
-          <div>
-            <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              Equipos asignados
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {perfil.equipos.map((e, i) => {
-                const dots = [
-                  "bg-indigo-500",
-                  "bg-sky-500",
-                  "bg-emerald-500",
-                  "bg-violet-500",
-                ];
-                return (
-                  <span
-                    key={e}
-                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700"
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${dots[i % 4]}`} />
-                    {e}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={cerrarSesion}
-            className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
-          >
-            <LogOut className="h-4 w-4" />
-            Cerrar Sesión Segura
-          </button>
-        </Card>
-
-        {/* ============ Columna derecha ============ */}
-        <div className="flex flex-col gap-6">
-          {/* Datos del empleado */}
-          <Card>
-            <CardHeader
-              icon={<IdCard className="h-4 w-4" />}
-              title="Datos del Empleado"
-              subtitle="Información personal e identificación corporativa registrada"
-              right={
-                <span className="rounded-md bg-slate-100 px-2.5 py-1 font-mono text-[11px] font-semibold text-slate-600">
-                  {perfil.id}
-                </span>
-              }
-            />
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <FieldLabel htmlFor="nombre" icon={<User className="h-3.5 w-3.5" />}>
-                  Nombre Completo
-                </FieldLabel>
-                <EditableField
-                  id="nombre"
-                  label="nombre"
-                  value={prefs.nombre}
-                  onChange={(v) => set("nombre", v)}
-                />
-              </div>
-
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                    <Mail className="h-3.5 w-3.5" />
-                    Correo Electrónico Corporativo
-                  </span>
-                  {perfil.emailVerificado && (
-                    <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                      <BadgeCheck className="h-3 w-3" />
-                      Verificado
-                    </span>
-                  )}
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
-                  {perfil.email}
-                </div>
-              </div>
-
-              <div>
-                <FieldLabel htmlFor="telefono" icon={<Phone className="h-3.5 w-3.5" />}>
-                  Teléfono / Extensión
-                </FieldLabel>
-                <EditableField
-                  id="telefono"
-                  label="teléfono"
-                  value={prefs.telefono}
-                  onChange={(v) => set("telefono", v)}
-                />
-              </div>
-
-              <div>
-                <FieldLabel icon={<Briefcase className="h-3.5 w-3.5" />}>
-                  Departamento y Puesto
-                </FieldLabel>
-                <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
-                  {perfil.departamentoPuesto}
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Notificaciones */}
-            <Card className="flex flex-col">
-              <CardHeader
-                icon={<Bell className="h-4 w-4" />}
-                title="Notificaciones de Solicitudes"
-                subtitle="Alertas del estado de tus tickets"
-              />
-              <ul className="flex flex-1 flex-col gap-5">
-                <li className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      Cambios de estado
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Avisos push cuando un técnico actualice o responda
-                    </p>
-                  </div>
-                  <Switch
-                    label="Cambios de estado"
-                    checked={prefs.cambiosEstado}
-                    onChange={(v) => set("cambiosEstado", v)}
-                  />
-                </li>
-                <li className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      Notificaciones por correo
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Avisos al resolver o solicitar información adicional
-                    </p>
-                  </div>
-                  <Switch
-                    label="Notificaciones por correo"
-                    checked={prefs.notifCorreo}
-                    onChange={(v) => set("notifCorreo", v)}
-                  />
-                </li>
-                <li className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      Resumen semanal
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Estado consolidado cada lunes a las 08:00 CET
-                    </p>
-                  </div>
-                  <Switch
-                    label="Resumen semanal"
-                    checked={prefs.resumenSemanal}
-                    onChange={(v) => set("resumenSemanal", v)}
-                  />
-                </li>
-              </ul>
-              <p className="mt-6 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
-                <RefreshCw className="h-3 w-3 text-indigo-500" />
-                Preferencias sincronizadas con el portal de ayuda
+      {cargando ? (
+        <ProfileSkeleton />
+      ) : (
+        <>
+          {/* Título */}
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">
+                Configuración de Perfil
+              </h1>
+              <p className="mt-1 max-w-md text-sm text-slate-500">
+                Gestiona tu información laboral básica, preferencias de
+                notificación de tus solicitudes y accesos.
               </p>
-            </Card>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-700">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Activo {perfil.sede && `• ${perfil.sede}`}
+              </div>
+            </div>
+          </div>
 
-            {/* Seguridad */}
+          <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+            {/* ============ Columna izquierda ============ */}
             <Card className="flex flex-col">
-              <CardHeader
-                icon={<ShieldCheck className="h-4 w-4" />}
-                title="Seguridad y Acceso"
-                subtitle="Opciones de acceso de tu cuenta"
-              />
-              <div className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:bg-slate-100"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-indigo-600 shadow-sm">
-                    <KeyRound className="h-4 w-4" />
+              <div className="flex flex-col items-center text-center">
+                <div className="relative">
+                  <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-md ring-2 ring-indigo-100">
+                    <Image
+                      src={perfil.avatar}
+                      alt={prefs.nombre}
+                      fill
+                      sizes="96px"
+                      className="object-cover"
+                    />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-slate-800">
-                      Cambiar Contraseña
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-400" />
-                </button>
+                  <button
+                    type="button"
+                    aria-label="Cambiar foto"
+                    className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#313652] text-white shadow hover:bg-[#262a40]"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                  </button>
+                </div>
 
-                <div className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-emerald-600 shadow-sm">
-                    <Laptop className="h-4 w-4" />
+                <h2 className="mt-4 text-lg font-bold text-slate-800">
+                  {prefs.nombre}
+                </h2>
+                <p className="mt-1 text-xs text-slate-600">{perfil.puesto}</p>
+                <p className="mt-2 flex items-center gap-1.5 font-mono text-xs text-slate-500">
+                  <Mail className="h-3.5 w-3.5" />
+                  {perfil.email}
+                </p>
+                <div className="mt-3 flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  {perfil.area}
+                </div>
+              </div>
+
+              <hr className="my-5 border-slate-200" />
+
+              {/* Actividad de soporte */}
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Actividad de soporte
+                  </h3>
+                  <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                    {actividad.periodo}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="flex flex-col items-center rounded-xl border border-slate-200 p-3 text-center">
+                    <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                      <FilePlus2 className="h-4 w-4" />
+                    </div>
+                    <span className="text-lg font-bold text-slate-800">
+                      {actividad.creados}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Creados</span>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-slate-800">
-                      {perfil.dispositivo.nombre}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {perfil.dispositivo.detalle}
-                    </p>
+                  <div className="flex flex-col items-center rounded-xl border border-slate-200 p-3 text-center">
+                    <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-500">
+                      <Clock className="h-4 w-4" />
+                    </div>
+                    <span className="text-lg font-bold text-slate-800">
+                      {actividad.enProgreso}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      En Progreso
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-center rounded-xl border border-slate-200 p-3 text-center">
+                    <div className="mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                      <CircleCheck className="h-4 w-4" />
+                    </div>
+                    <span className="text-lg font-bold text-slate-800">
+                      {actividad.resueltos}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Resueltos</span>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Sesión activa
-                </span>
-                <Link
-                  href="#"
-                  className="font-medium text-indigo-600 hover:underline"
-                >
-                  Ver historial de accesos
-                </Link>
-              </div>
-            </Card>
-          </div>
+              <hr className="my-5 border-slate-200" />
 
-          {/* Barra de guardado */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="flex items-center gap-2 text-xs text-slate-600">
-              <CheckCircle2
-                className={`h-4 w-4 ${
-                  hayCambios ? "text-amber-500" : "text-emerald-500"
-                }`}
-              />
-              {hayCambios
-                ? "Tienes cambios sin guardar. Se perderán al salir del navegador."
-                : "Los cambios no guardados se perderán al salir del navegador."}
-            </p>
-            <div className="flex items-center gap-3">
+              {/* Equipos asignados */}
+              <div>
+                <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                  Equipos asignados
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {perfil.equipos.map((e, i) => {
+                    const dots = [
+                      "bg-indigo-500",
+                      "bg-sky-500",
+                      "bg-emerald-500",
+                      "bg-violet-500",
+                    ];
+                    return (
+                      <span
+                        key={e}
+                        className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700"
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${dots[i % 4]}`}
+                        />
+                        {e}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
               <button
                 type="button"
-                onClick={restablecer}
-                disabled={!hayCambios || guardando}
-                className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={cerrarSesion}
+                className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
               >
-                Restablecer Valores
+                <LogOut className="h-4 w-4" />
+                Cerrar Sesión Segura
               </button>
-              <button
-                type="button"
-                onClick={guardar}
-                disabled={!hayCambios || guardando}
-                className="flex items-center gap-2 rounded-lg bg-[#313652] px-5 py-2.5 text-xs font-semibold text-white shadow-md transition-colors hover:bg-[#262a40] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" />
-                {guardando ? "Guardando..." : "Guardar Cambios"}
-              </button>
+            </Card>
+
+            {/* ============ Columna derecha ============ */}
+            <div className="flex flex-col gap-6">
+              {/* Datos del empleado */}
+              <Card>
+                <CardHeader
+                  icon={<IdCard className="h-4 w-4" />}
+                  title="Datos del Empleado"
+                  subtitle="Información personal e identificación corporativa registrada"
+                />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <FieldLabel
+                      htmlFor="nombre"
+                      icon={<User className="h-3.5 w-3.5" />}
+                    >
+                      Nombre Completo
+                    </FieldLabel>
+                    <EditableField
+                      id="nombre"
+                      label="nombre"
+                      value={prefs.nombre}
+                      onChange={(v) => set("nombre", v)}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <Mail className="h-3.5 w-3.5" />
+                        Correo Electrónico Corporativo
+                      </span>
+                      {perfil.emailVerificado && (
+                        <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          <BadgeCheck className="h-3 w-3" />
+                          Verificado
+                        </span>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-700">
+                      {perfil.email}
+                    </div>
+                  </div>
+
+                  <div>
+                    <FieldLabel
+                      htmlFor="telefono"
+                      icon={<AtSign className="h-3.5 w-3.5" />}
+                    >
+                      Nombre de Usuario
+                    </FieldLabel>
+                    <EditableField
+                      id="usuario"
+                      label="Usuario"
+                      value={prefs.telefono}
+                      onChange={(v) => set("telefono", v)}
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel
+                      htmlFor="telefono"
+                      icon={<Phone className="h-3.5 w-3.5" />}
+                    >
+                      Teléfono / Extensión
+                    </FieldLabel>
+                    <EditableField
+                      id="telefono"
+                      label="teléfono"
+                      value={prefs.telefono}
+                      onChange={(v) => set("telefono", v)}
+                    />
+                  </div>
+
+                </div>
+              </Card>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Notificaciones */}
+                <Card className="flex flex-col">
+                  <CardHeader
+                    icon={<Bell className="h-4 w-4" />}
+                    title="Notificaciones de Solicitudes"
+                    subtitle="Alertas del estado de tus tickets"
+                  />
+                  <ul className="flex flex-1 flex-col gap-5">
+                    <li className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          Cambios de estado
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Avisos push cuando un técnico actualice o responda
+                        </p>
+                      </div>
+                      <Switch
+                        label="Cambios de estado"
+                        checked={prefs.cambiosEstado}
+                        onChange={(v) => set("cambiosEstado", v)}
+                      />
+                    </li>
+                    <li className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          Notificaciones por correo
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Avisos al resolver o solicitar información adicional
+                        </p>
+                      </div>
+                      <Switch
+                        label="Notificaciones por correo"
+                        checked={prefs.notifCorreo}
+                        onChange={(v) => set("notifCorreo", v)}
+                      />
+                    </li>
+                    <li className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          Resumen semanal
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Estado consolidado cada lunes a las 08:00 CET
+                        </p>
+                      </div>
+                      <Switch
+                        label="Resumen semanal"
+                        checked={prefs.resumenSemanal}
+                        onChange={(v) => set("resumenSemanal", v)}
+                      />
+                    </li>
+                  </ul>
+                  <p className="mt-6 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                    <RefreshCw className="h-3 w-3 text-indigo-500" />
+                    Preferencias sincronizadas con el portal de ayuda
+                  </p>
+                </Card>
+
+                {/* Seguridad */}
+                <Card className="flex flex-col">
+                  <CardHeader
+                    icon={<ShieldCheck className="h-4 w-4" />}
+                    title="Seguridad y Acceso"
+                    subtitle="Opciones de acceso de tu cuenta"
+                  />
+                  <div className="flex flex-col gap-3">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:bg-slate-100"
+                    >
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-indigo-600 shadow-sm">
+                        <KeyRound className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-slate-800">
+                          Cambiar Contraseña
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-slate-400" />
+                    </button>
+
+                    <div className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-emerald-600 shadow-sm">
+                        <Laptop className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-slate-800">
+                          {perfil.dispositivo.nombre}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {perfil.dispositivo.detalle}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      Sesión activa
+                    </span>
+                    <Link
+                      href="#"
+                      className="font-medium text-indigo-600 hover:underline"
+                    >
+                      Ver historial de accesos
+                    </Link>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Barra de guardado */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="flex items-center gap-2 text-xs text-slate-600">
+                  <CheckCircle2
+                    className={`h-4 w-4 ${
+                      hayCambios ? "text-amber-500" : "text-emerald-500"
+                    }`}
+                  />
+                  {hayCambios
+                    ? "Tienes cambios sin guardar. Se perderán al salir del navegador."
+                    : "Los cambios no guardados se perderán al salir del navegador."}
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={restablecer}
+                    disabled={!hayCambios || guardando}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Restablecer Valores
+                  </button>
+                  <button
+                    type="button"
+                    onClick={guardar}
+                    disabled={!hayCambios || guardando}
+                    className="flex items-center gap-2 rounded-lg bg-[#313652] px-5 py-2.5 text-xs font-semibold text-white shadow-md transition-colors hover:bg-[#262a40] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    {guardando ? "Guardando..." : "Guardar Cambios"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

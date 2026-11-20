@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   ArrowUpRight,
@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Clock,
   Code,
+  FileEdit,
   FileImage,
   FileText,
   Home,
@@ -100,6 +101,19 @@ type ModalEstado = {
   mensaje: string;
 };
 
+const MODAL_INICIAL: ModalEstado = {
+  abierto: false,
+  tipo: "loading",
+  titulo: "",
+  mensaje: "",
+};
+
+const TOAST_INICIAL: { show: boolean; msg: string; type: "success" | "error" } = {
+  show: false,
+  msg: "",
+  type: "success",
+};
+
 const formatoTamano = (bytes: number) =>
   bytes >= 1024 * 1024
     ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
@@ -112,6 +126,13 @@ function calcularPrioridad(impact: string, urgency: string): string {
   if (score === 3) return "HIGH";
   if (score === 2) return "MEDIUM";
   return "LOW";
+}
+
+function mapUbicacionDesdeDB(modality?: string | null): string {
+  const norm = String(modality || "").toLowerCase();
+  if (norm.includes("remoto") || norm.includes("teletrabajo")) return "remoto";
+  if (norm.includes("transito") || norm.includes("tránsito") || norm.includes("viaje")) return "transito";
+  return "oficina";
 }
 
 /* ---------- Pequeños componentes ---------- */
@@ -310,7 +331,6 @@ function CrearSolicitudSkeleton() {
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
         {/* Columna Formulario */}
         <div className="flex flex-col gap-6">
-          {/* Paso 1 Skeleton */}
           <Card>
             <div className="mb-5 flex items-start justify-between border-b border-slate-100 pb-4">
               <div className="flex items-start gap-3">
@@ -359,7 +379,6 @@ function CrearSolicitudSkeleton() {
             </div>
           </Card>
 
-          {/* Paso 2 Skeleton */}
           <Card>
             <div className="mb-5 flex items-start justify-between border-b border-slate-100 pb-4">
               <div className="flex items-start gap-3">
@@ -400,21 +419,6 @@ function CrearSolicitudSkeleton() {
               </div>
             </div>
           </Card>
-
-          {/* Paso 3 Skeleton */}
-          <Card>
-            <div className="mb-5 flex items-start justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 rounded-lg bg-slate-200" />
-                <div className="space-y-2">
-                  <div className="h-4 w-52 rounded bg-slate-200" />
-                  <div className="h-3 w-64 rounded bg-slate-200" />
-                </div>
-              </div>
-              <div className="h-6 w-24 rounded-md bg-slate-200" />
-            </div>
-            <div className="h-36 w-full rounded-xl bg-slate-200" />
-          </Card>
         </div>
 
         {/* Columna Lateral Skeleton */}
@@ -431,30 +435,6 @@ function CrearSolicitudSkeleton() {
                 <div className="h-2.5 w-20 rounded bg-slate-200" />
               </div>
             </div>
-            <div className="mt-2 h-8 w-full rounded-lg bg-slate-200" />
-          </Card>
-
-          <Card className="!p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <div className="h-7 w-7 rounded-lg bg-slate-200" />
-              <div className="h-3.5 w-36 rounded bg-slate-200" />
-            </div>
-            <div className="mb-3 space-y-1.5">
-              <div className="h-3 w-full rounded bg-slate-200" />
-              <div className="h-3 w-4/5 rounded bg-slate-200" />
-            </div>
-            <div className="space-y-2">
-              <div className="h-16 w-full rounded-xl bg-slate-200" />
-              <div className="h-16 w-full rounded-xl bg-slate-200" />
-            </div>
-          </Card>
-
-          <Card className="!p-5">
-            <div className="mb-3 h-3 w-36 rounded bg-slate-200" />
-            <div className="space-y-2">
-              <div className="h-14 w-full rounded-xl bg-slate-200" />
-              <div className="h-14 w-full rounded-xl bg-slate-200" />
-            </div>
           </Card>
         </aside>
       </div>
@@ -462,9 +442,13 @@ function CrearSolicitudSkeleton() {
   );
 }
 
-/* ---------- Página ---------- */
-export default function CrearSolicitudPage() {
+/* ---------- Contenido principal ---------- */
+function CrearSolicitudContent() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const draftId = searchParams.get("draftId")?.trim() || null;
+  const esModoEdicion = Boolean(draftId);
 
   const [categoriasDB, setCategoriasDB] = useState<CategoriaDB[]>([]);
   const [cargandoPagina, setCargandoPagina] = useState(true);
@@ -489,40 +473,94 @@ export default function CrearSolicitudPage() {
   const [errores, setErrores] = useState<Errores>({});
   const [enviando, setEnviando] = useState(false);
 
-  const [modalEnvio, setModalEnvio] = useState<ModalEstado>({
-    abierto: false,
-    tipo: "loading",
-    titulo: "",
-    mensaje: "",
-  });
-
-  const [toast, setToast] = useState<{ show: boolean; msg: string; type: "success" | "error" }>({
-    show: false,
-    msg: "",
-    type: "success",
-  });
+  const [modalEnvio, setModalEnvio] = useState<ModalEstado>(MODAL_INICIAL);
+  const [toast, setToast] = useState(TOAST_INICIAL);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const mostrarToast = (msg: string, type: "success" | "error") => {
+  const reiniciarTodo = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    if (redirectTimerRef.current) {
+      clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = null;
+    }
+
+    setTitulo("");
+    setCategoriaId("");
+    setTipo("INCIDENTE");
+    setSubcategoria("");
+    setUbicacion("oficina");
+    setDescripcion("");
+    setImpacto("LOW");
+    setUrgencia("LOW");
+    setAdjuntos([]);
+    setArrastrando(false);
+    setErrores({});
+    setEnviando(false);
+    setModalEnvio(MODAL_INICIAL);
+    setToast(TOAST_INICIAL);
+
+    if (inputFileRef.current) {
+      inputFileRef.current.value = "";
+    }
+
+    try {
+      localStorage.removeItem("ticket-borrador");
+    } catch {
+      // Ignorar errores de acceso a storage
+    }
+  }, []);
+
+  const mostrarToast = useCallback((msg: string, type: "success" | "error") => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ show: true, msg, type });
-    setTimeout(() => setToast((t) => ({ ...t, show: false })), 3500);
-  };
+    toastTimerRef.current = setTimeout(() => {
+      setToast((t) => ({ ...t, show: false }));
+    }, 3500);
+  }, []);
 
   const cerrarModal = () => {
     if (modalEnvio.tipo === "loading") return;
-    setModalEnvio((prev) => ({ ...prev, abierto: false }));
+    setModalEnvio(MODAL_INICIAL);
   };
 
-  /* Cargar categorías desde /api/categories y perfil desde /api/me */
+  /* Reiniciar al cambiar de ruta si no estamos editando borrador */
   useEffect(() => {
+    if (!draftId) {
+      reiniciarTodo();
+    }
+  }, [pathname, draftId, reiniciarTodo]);
+
+  /* Cargar categorías, perfil y (si aplica) los datos del borrador por ID */
+  useEffect(() => {
+    let activo = true;
+    setCargandoPagina(true);
+
     const cargarDatosIniciales = async () => {
       try {
-        const [resCat, resMe] = await Promise.all([
-          fetch("/api/categories"),
-          fetch("/api/me"),
-        ]);
+        const peticiones: Promise<Response>[] = [
+          fetch("/api/categories", { cache: "no-store" }),
+          fetch("/api/me", { cache: "no-store" }),
+        ];
+
+        if (draftId) {
+          peticiones.push(
+            fetch(`/api/tickets/${encodeURIComponent(draftId)}`, {
+              cache: "no-store",
+              credentials: "include",
+            })
+          );
+        }
+
+        const [resCat, resMe, resDraft] = await Promise.all(peticiones);
+
+        if (!activo) return;
 
         if (resCat.ok) {
           const dataCat = await resCat.json();
@@ -535,20 +573,66 @@ export default function CrearSolicitudPage() {
           const dataMe = await resMe.json();
           setSolicitante({
             nombre: dataMe.name || dataMe.username || "Usuario",
-            area: [dataMe.department, dataMe.area].filter(Boolean).join(" • ") || "Usuario registrado",
+            area:
+              [dataMe.department, dataMe.area].filter(Boolean).join(" • ") ||
+              "Usuario registrado",
             correo: dataMe.email || "",
             avatar: "/images/avatar.jpg",
           });
         }
+
+        if (draftId && resDraft) {
+          if (!resDraft.ok) {
+            const errData = await resDraft.json().catch(() => ({}));
+            setModalEnvio({
+              abierto: true,
+              tipo: "error",
+              titulo: "No se pudo cargar el borrador",
+              mensaje:
+                errData.error ||
+                "El borrador no existe o no tienes permiso para editarlo.",
+            });
+          } else {
+            const dataDraft = await resDraft.json();
+            const t = dataDraft.ticket;
+            const esBorradorValido =
+              t?.draft === true ||
+              Number(t?.draft) === 1 ||
+              String(t?.status || "").toUpperCase() === "DRAFT";
+
+            if (!t || !esBorradorValido) {
+              setModalEnvio({
+                abierto: true,
+                tipo: "error",
+                titulo: "Solicitud ya enviada",
+                mensaje:
+                  "Este ticket ya fue enviado anteriormente y no puede editarse como borrador.",
+              });
+            } else {
+              setTitulo(t.title || "");
+              setCategoriaId(t.category_id || t.category?.id || "");
+              setTipo(t.type || "INCIDENTE");
+              setSubcategoria(t.subcategory || "");
+              setUbicacion(mapUbicacionDesdeDB(t.modality));
+              setDescripcion(t.description || "");
+              setImpacto((t.impact || "LOW").toUpperCase());
+              setUrgencia((t.urgency || "LOW").toUpperCase());
+            }
+          }
+        }
       } catch (err) {
         console.error("Error cargando datos iniciales:", err);
       } finally {
-        setCargandoPagina(false);
+        if (activo) setCargandoPagina(false);
       }
     };
 
     cargarDatosIniciales();
-  }, []);
+
+    return () => {
+      activo = false;
+    };
+  }, [draftId, mostrarToast]);
 
   /* Progreso simulado de subida */
   useEffect(() => {
@@ -556,8 +640,8 @@ export default function CrearSolicitudPage() {
     const timer = setInterval(() => {
       setAdjuntos((prev) =>
         prev.map((a) =>
-          a.progreso < 100 ? { ...a, progreso: Math.min(100, a.progreso + 20) } : a,
-        ),
+          a.progreso < 100 ? { ...a, progreso: Math.min(100, a.progreso + 20) } : a
+        )
       );
     }, 250);
     return () => clearInterval(timer);
@@ -582,7 +666,11 @@ export default function CrearSolicitudPage() {
         mostrarToast(`Máximo ${MAX_ARCHIVOS} archivos por solicitud`, "error");
         break;
       }
-      nuevos.push({ id: `${file.name}-${file.size}-${Date.now()}-${nuevos.length}`, file, progreso: 0 });
+      nuevos.push({
+        id: `${file.name}-${file.size}-${Date.now()}-${nuevos.length}`,
+        file,
+        progreso: 0,
+      });
       espacio--;
     }
     if (nuevos.length) setAdjuntos((prev) => [...prev, ...nuevos]);
@@ -627,25 +715,21 @@ export default function CrearSolicitudPage() {
   };
 
   const limpiar = () => {
-    setTitulo("");
-    setCategoriaId("");
-    setTipo("INCIDENTE");
-    setSubcategoria("");
-    setUbicacion("oficina");
-    setDescripcion("");
-    setImpacto("LOW");
-    setUrgencia("LOW");
-    setAdjuntos([]);
-    setErrores({});
+    reiniciarTodo();
   };
 
-  const enviar = async () => {
-    if (!validar()) {
-      mostrarToast("Revisa los campos marcados en rojo", "error");
-      return;
-    }
-    if (adjuntos.some((a) => a.progreso < 100)) {
-      mostrarToast("Espera a que terminen de subir los archivos", "error");
+  const procesarTicket = async (esBorrador: boolean) => {
+    if (!esBorrador) {
+      if (!validar()) {
+        mostrarToast("Revisa los campos marcados en rojo", "error");
+        return;
+      }
+      if (adjuntos.some((a) => a.progreso < 100)) {
+        mostrarToast("Espera a que terminen de subir los archivos", "error");
+        return;
+      }
+    } else if (!titulo.trim() && !descripcion.trim()) {
+      mostrarToast("Escribe al menos un título o una descripción para el borrador", "error");
       return;
     }
 
@@ -653,8 +737,16 @@ export default function CrearSolicitudPage() {
     setModalEnvio({
       abierto: true,
       tipo: "loading",
-      titulo: "Creando solicitud...",
-      mensaje: "Por favor espera mientras registramos tu ticket en la mesa de ayuda.",
+      titulo: esBorrador
+        ? esModoEdicion
+          ? "Actualizando borrador..."
+          : "Guardando borrador..."
+        : esModoEdicion
+          ? "Enviando solicitud..."
+          : "Creando solicitud...",
+      mensaje: esBorrador
+        ? "Por favor espera mientras guardamos los cambios en tu borrador."
+        : "Por favor espera mientras registramos tu ticket en la mesa de ayuda.",
     });
 
     try {
@@ -663,8 +755,13 @@ export default function CrearSolicitudPage() {
 
       const priority = calcularPrioridad(impacto, urgencia);
 
-      const response = await fetch("/api/tickets", {
-        method: "POST",
+      const endpoint = esModoEdicion
+        ? `/api/tickets/${encodeURIComponent(draftId!)}`
+        : "/api/tickets";
+      const method = esModoEdicion ? "PATCH" : "POST";
+
+      const response = await fetch(endpoint, {
+        method,
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -676,81 +773,57 @@ export default function CrearSolicitudPage() {
           impact: impacto,
           urgency: urgencia,
           priority,
-          category_id: categoriaId,
+          category_id: categoriaId || null,
+          draft: esBorrador ? 1 : 0,
         }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || result.detalle || "No se pudo crear el ticket");
+        throw new Error(
+          result.error ||
+            result.detalle ||
+            (esBorrador ? "No se pudo guardar el borrador" : "No se pudo crear el ticket")
+        );
       }
 
-      localStorage.removeItem("ticket-borrador");
-      limpiar();
+      reiniciarTodo();
 
       setModalEnvio({
         abierto: true,
         tipo: "success",
-        titulo: "¡Solicitud creada con éxito!",
-        mensaje: "Tu ticket ha sido registrado correctamente y asignado al equipo de soporte.",
+        titulo: esBorrador
+          ? esModoEdicion
+            ? "¡Borrador actualizado!"
+            : "¡Borrador guardado!"
+          : "¡Solicitud enviada con éxito!",
+        mensaje: esBorrador
+          ? "Los cambios en tu borrador se han guardado correctamente."
+          : "Tu ticket ha sido registrado correctamente y asignado al equipo de soporte.",
       });
 
-      setTimeout(() => {
-        router.push("/portal/tickets/consultarMT");
+      redirectTimerRef.current = setTimeout(() => {
+        reiniciarTodo();
+        router.push("/portal/dashboard");
         router.refresh();
       }, 1500);
     } catch (err: any) {
       setModalEnvio({
         abierto: true,
         tipo: "error",
-        titulo: "Error al crear la solicitud",
-        mensaje: err.message || "Ocurrió un problema inesperado al enviar el ticket. Inténtalo de nuevo.",
+        titulo: esBorrador ? "Error al guardar borrador" : "Error al enviar la solicitud",
+        mensaje:
+          err.message ||
+          "Ocurrió un problema inesperado al procesar la solicitud. Inténtalo de nuevo.",
       });
     } finally {
       setEnviando(false);
     }
   };
 
-  const guardarBorrador = () => {
-    try {
-      localStorage.setItem(
-        "ticket-borrador",
-        JSON.stringify({
-          titulo,
-          categoriaId,
-          tipo,
-          subcategoria,
-          ubicacion,
-          descripcion,
-          impacto,
-          urgencia,
-        }),
-      );
-      mostrarToast("Borrador guardado en este navegador", "success");
-    } catch {
-      mostrarToast("No se pudo guardar el borrador", "error");
-    }
-  };
-
-  // Recupera el borrador al abrir la página
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("ticket-borrador");
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      setTitulo(d.titulo ?? "");
-      setCategoriaId(d.categoriaId ?? "");
-      setTipo(d.tipo ?? "INCIDENTE");
-      setSubcategoria(d.subcategoria ?? "");
-      setUbicacion(d.ubicacion ?? "oficina");
-      setDescripcion(d.descripcion ?? "");
-      setImpacto(d.impacto ?? "LOW");
-      setUrgencia(d.urgencia ?? "LOW");
-    } catch {
-      /* sin borrador */
-    }
-  }, []);
+  const enviar = () => procesarTicket(false);
+  const guardarBorrador = () => procesarTicket(true);
 
   if (cargandoPagina) {
     return <CrearSolicitudSkeleton />;
@@ -780,6 +853,7 @@ export default function CrearSolicitudPage() {
       <nav className="mb-5 flex items-center gap-2 text-xs text-slate-500">
         <Link
           href="/portal/dashboard"
+          onClick={reiniciarTodo}
           className="flex items-center gap-1.5 transition-colors hover:text-slate-800"
         >
           <Home className="h-3.5 w-3.5" />
@@ -787,42 +861,69 @@ export default function CrearSolicitudPage() {
         </Link>
 
         <ChevronRight className="h-3 w-3" />
-
-        <Link href="/portal/tickets/consultarMT" className="transition-colors hover:text-slate-800">
+        <Link
+          href="/portal/dashboard"
+          onClick={reiniciarTodo}
+          className="transition-colors hover:text-slate-800"
+        >
           Mis Solicitudes
         </Link>
+
         <ChevronRight className="h-3 w-3" />
-        <Link
-          href="/portal/tickets/crear"
-          className="rounded-md bg-slate-200 px-2 py-0.5 font-semibold text-slate-700"
-        >
-          Crear Solicitud
-        </Link>
+        <span className="rounded-md bg-slate-200 px-2 py-0.5 font-semibold text-slate-700">
+          {esModoEdicion ? "Editar Borrador" : "Crear Solicitud"}
+        </span>
       </nav>
+
+      {/* Banner informativo en modo edición de borrador */}
+      {esModoEdicion && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <FileEdit className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-xs font-bold text-amber-900">
+                Editando borrador guardado
+              </p>
+              <p className="text-xs text-amber-800/90">
+                Puedes actualizar tus cambios como borrador o registrar la solicitud para enviarla a Soporte TI.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/portal/dashboard"
+            className="rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100/60"
+          >
+            Volver a Mis Solicitudes
+          </Link>
+        </div>
+      )}
 
       {/* Encabezado */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide">
             <span className="rounded bg-indigo-100 px-2 py-0.5 text-indigo-700">IT Helpdesk</span>
-            <span className="text-slate-500">Portal de autoservicio</span>
+            <span className="text-slate-500">
+              {esModoEdicion ? "Edición de borrador" : "Portal de autoservicio"}
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Crear Solicitud de Soporte (Ticket)</h1>
+          <h1 className="text-2xl font-bold text-slate-800">
+            {esModoEdicion
+              ? "Editar Borrador de Solicitud"
+              : "Crear Solicitud de Soporte (Ticket)"}
+          </h1>
           <p className="mt-1 max-w-lg text-sm text-slate-500">
-            Reporta un incidente técnico o solicita nuevo equipamiento, accesos o servicios
-            informáticos de forma guiada.
+            {esModoEdicion
+              ? "Completa o ajusta los datos de tu borrador antes de enviarlo al equipo de soporte técnico."
+              : "Reporta un incidente técnico o solicita nuevo equipamiento, accesos o servicios informáticos de forma guiada."}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
-            <Timer className="h-4 w-4 text-slate-500" />
-            <div className="leading-tight">
-              <p className="text-[10px] text-slate-500">SLA de primera respuesta</p>
-              <p className="text-xs font-bold text-slate-800">&lt; 2 horas hábiles</p>
-            </div>
-          </div>
           <Link
-            href="/soporte/knowledge"
+            href="/portal/knowledge"
+            onClick={reiniciarTodo}
             className="flex items-center gap-2 rounded-xl bg-indigo-100 px-3 py-2.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-200"
           >
             <BookOpen className="h-4 w-4" />
@@ -833,7 +934,7 @@ export default function CrearSolicitudPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
         {/* ============ Formulario ============ */}
-        <div className="flex flex-col gap-6">
+        <form autoComplete="off" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-6">
           {/* Paso 1 */}
           <Card>
             <StepHeader
@@ -854,6 +955,7 @@ export default function CrearSolicitudPage() {
                 <input
                   id="titulo"
                   type="text"
+                  autoComplete="off"
                   maxLength={MAX_TITULO}
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
@@ -872,6 +974,7 @@ export default function CrearSolicitudPage() {
                     </span>
                     <select
                       id="categoria"
+                      autoComplete="off"
                       value={categoriaId}
                       onChange={(e) => setCategoriaId(e.target.value)}
                       className={`${inputBase} appearance-none pl-9 pr-9 ${
@@ -907,6 +1010,7 @@ export default function CrearSolicitudPage() {
                     </span>
                     <select
                       id="tipo"
+                      autoComplete="off"
                       value={tipo}
                       onChange={(e) => setTipo(e.target.value)}
                       className={`${inputBase} appearance-none pl-9 pr-9 ${
@@ -936,6 +1040,7 @@ export default function CrearSolicitudPage() {
                   <input
                     id="subcategoria"
                     type="text"
+                    autoComplete="off"
                     maxLength={100}
                     value={subcategoria}
                     onChange={(e) => setSubcategoria(e.target.value)}
@@ -1017,6 +1122,7 @@ export default function CrearSolicitudPage() {
                     id="descripcion"
                     ref={textareaRef}
                     rows={6}
+                    autoComplete="off"
                     value={descripcion}
                     onChange={(e) => setDescripcion(e.target.value)}
                     placeholder="Describe los pasos que seguiste, el mensaje de error exacto y desde cuándo ocurre..."
@@ -1161,7 +1267,7 @@ export default function CrearSolicitudPage() {
               </div>
             )}
           </Card>
-        </div>
+        </form>
 
         {/* ============ Columna lateral ============ */}
         <aside className="flex flex-col gap-6">
@@ -1171,7 +1277,8 @@ export default function CrearSolicitudPage() {
                 Solicitante identificado
               </h3>
               <Link
-                href="/soporte/profile"
+                href="/portal/profile"
+                onClick={reiniciarTodo}
                 className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800"
               >
                 Perfil <ArrowUpRight className="h-3 w-3" />
@@ -1265,14 +1372,24 @@ export default function CrearSolicitudPage() {
           Se enviará un acuse de recibo con el identificador del ticket a tu correo corporativo.
         </p>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={limpiar}
-            disabled={enviando}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-          >
-            Cancelar
-          </button>
+          {esModoEdicion ? (
+            <Link
+              href="/portal/dashboard"
+              className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Cancelar
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={limpiar}
+              disabled={enviando}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            >
+              Limpiar Formulario
+            </button>
+          )}
+
           <button
             type="button"
             onClick={guardarBorrador}
@@ -1280,8 +1397,13 @@ export default function CrearSolicitudPage() {
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
-            Guardar Borrador
+            {enviando
+              ? "Procesando..."
+              : esModoEdicion
+                ? "Actualizar Borrador"
+                : "Guardar Borrador"}
           </button>
+
           <button
             type="button"
             onClick={enviar}
@@ -1289,10 +1411,22 @@ export default function CrearSolicitudPage() {
             className="flex items-center gap-2 rounded-lg bg-[#313652] px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-[#262a40] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Send className="h-4 w-4" />
-            {enviando ? "Enviando..." : "Enviar Solicitud"}
+            {enviando
+              ? "Enviando..."
+              : esModoEdicion
+                ? "Enviar Solicitud"
+                : "Registrar Solicitud"}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CrearSolicitudPage() {
+  return (
+    <Suspense fallback={<CrearSolicitudSkeleton />}>
+      <CrearSolicitudContent />
+    </Suspense>
   );
 }

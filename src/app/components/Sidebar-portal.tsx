@@ -20,9 +20,6 @@ import Image from "next/image";
 
 const navItems = [
   { name: "Dashboard", href: "/portal/dashboard", icon: LayoutDashboard },
-  { name: "Mis Tickets", href: "/soporte/ticketssTec", icon: Ticket },
-  { name: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
-  { name: "Reportes", href: "/portal/reports", icon: PieChart },
   { name: "Menu de los usuarios", href: "/portal", icon: ShieldCheck },
 ];
 
@@ -157,7 +154,7 @@ export default function Sidebar() {
                 </Link>
 
                 <Link
-                  href="/soporte/profile"
+                  href="/portal/profile"
                   className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
                   onClick={() => setIsMenuOpen(false)}
                 >
@@ -180,7 +177,7 @@ export default function Sidebar() {
 
                         setTimeout(() => {
                           setNotification((prev) => ({ ...prev, show: false }));
-                          router.push("/login");
+                          router.push("/");
                           router.refresh();
                         }, 1500);
                       } else {

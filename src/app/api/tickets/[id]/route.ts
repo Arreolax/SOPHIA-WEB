@@ -16,6 +16,16 @@ function normalizeRole(val: unknown): UserRole {
   return "usuario";
 }
 
+function esTicketBorrador(ticket: any): boolean {
+  const val = ticket?.draft ?? ticket?.is_draft;
+  return (
+    val === true ||
+    Number(val) === 1 ||
+    String(val).toLowerCase() === "true" ||
+    String(ticket?.status || "").toUpperCase() === "DRAFT"
+  );
+}
+
 async function getAuthContext() {
   const cookieStore = await cookies();
   let token = cookieStore.get("sb-access-token")?.value;
@@ -108,7 +118,7 @@ async function getAuthContext() {
   };
 }
 
-// GET /api/tickets/[id] -> Obtener detalle de un ticket
+// GET /api/tickets/[id] -> Obtener detalle de un ticket o borrador
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -159,7 +169,7 @@ export async function GET(
   }
 }
 
-// PATCH /api/tickets/[id] -> Asignar, cambiar estado y editar ticket
+// PATCH /api/tickets/[id] -> Asignar, cambiar estado, editar borrador o editar ticket
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -189,7 +199,6 @@ export async function PATCH(
     }
 
     // Permisos para rol "usuario":
-    // Solo puede reabrir su propio ticket si está cerrado/resuelto
     if (role === "usuario") {
       if (currentTicket.created_by !== user.id) {
         return NextResponse.json(
@@ -198,6 +207,70 @@ export async function PATCH(
         );
       }
 
+      // 1. Si el ticket actual es un BORRADOR, el usuario puede editarlo o enviarlo
+      if (esTicketBorrador(currentTicket)) {
+        const mantenerBorrador =
+          body.draft === true ||
+          Number(body.draft) === 1 ||
+          String(body.draft).toLowerCase() === "true";
+
+        const draftUpdates: Record<string, any> = {
+          updated_at: new Date().toISOString(),
+          draft: mantenerBorrador ? 1 : 0,
+        };
+
+        if (body.title !== undefined) draftUpdates.title = String(body.title).trim();
+        if (body.description !== undefined) draftUpdates.description = String(body.description);
+        if (body.modality !== undefined) draftUpdates.modality = body.modality;
+        if (body.type !== undefined) draftUpdates.type = String(body.type).trim();
+        if (body.subcategory !== undefined) draftUpdates.subcategory = body.subcategory || null;
+        if (body.impact !== undefined) draftUpdates.impact = String(body.impact).toUpperCase();
+        if (body.urgency !== undefined) draftUpdates.urgency = String(body.urgency).toUpperCase();
+        if (body.priority !== undefined) draftUpdates.priority = String(body.priority).toUpperCase();
+        if (body.category_id !== undefined) draftUpdates.category_id = body.category_id || null;
+
+        // Si ya lo está enviando oficialmente (draft = 0)
+        if (!mantenerBorrador) {
+          draftUpdates.status = "OPEN";
+          draftUpdates.created_at = new Date().toISOString();
+        }
+
+        const { data: updatedDraft, error: draftErr } = await supabase
+          .from("ticket")
+          .update(draftUpdates)
+          .eq("id", id)
+          .select(`
+            *,
+            category:category_id ( id, name ),
+            creator:created_by ( id, name, username, email )
+          `)
+          .single();
+
+        if (draftErr) {
+          return NextResponse.json(
+            { error: "Error al actualizar el borrador", detalle: draftErr.message },
+            { status: 400 }
+          );
+        }
+
+        if (!mantenerBorrador) {
+          await supabase.from("status_history").insert({
+            ticket_id: id,
+            old_status: "DRAFT",
+            new_status: "OPEN",
+            changed_by: user.id,
+          });
+        }
+
+        return NextResponse.json({
+          mensaje: mantenerBorrador
+            ? "Borrador actualizado correctamente"
+            : "Solicitud enviada correctamente",
+          ticket: updatedDraft,
+        });
+      }
+
+      // 2. Si NO es borrador, solo puede cerrar su ticket
       const targetStatus = String(body.status || "").toUpperCase();
 
       if (targetStatus === "CLOSED") {
@@ -235,7 +308,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           error:
-            "Los usuarios solo pueden cerrar sus tickets. Si necesitas reabrir un caso, por favor crea un nuevo ticket.",
+            "Los usuarios solo pueden editar sus borradores o cerrar sus tickets activos.",
         },
         { status: 403 }
       );
@@ -246,7 +319,6 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
     };
 
-    // Campos que técnico y admin pueden modificar (asignación, estado, diagnóstico, resolución)
     if (body.assigned_to !== undefined) updates.assigned_to = body.assigned_to;
     if (body.status !== undefined) updates.status = String(body.status).toUpperCase();
     if (body.diagnosis !== undefined) updates.diagnosis = body.diagnosis;
@@ -255,7 +327,6 @@ export async function PATCH(
     if (body.impact !== undefined) updates.impact = String(body.impact).toUpperCase();
     if (body.urgency !== undefined) updates.urgency = String(body.urgency).toUpperCase();
 
-    // Campos adicionales que solo el admin puede editar directamente
     if (role === "admin") {
       if (body.title !== undefined) updates.title = body.title.trim();
       if (body.description !== undefined) updates.description = body.description.trim();
@@ -292,7 +363,6 @@ export async function PATCH(
         changed_by: user.id,
       });
 
-      // Si se reabre desde cerrado/resuelto, registrar en ticket_reopen_log
       if (
         updates.status === "OPEN" &&
         (currentTicket.status === "CLOSED" || currentTicket.status === "RESOLVED")
@@ -340,7 +410,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/tickets/[id] -> Eliminar ticket (solo admin)
+// DELETE /api/tickets/[id] -> Eliminar borrador propio (usuario) o ticket (admin)
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -351,14 +421,28 @@ export async function DELETE(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    if (auth.role !== "admin") {
+    const { id } = await params;
+
+    if (auth.role === "usuario") {
+      const { data: ticket } = await auth.supabase
+        .from("ticket")
+        .select("id, created_by, draft, status")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!ticket || ticket.created_by !== auth.user.id || !esTicketBorrador(ticket)) {
+        return NextResponse.json(
+          { error: "Solo puedes eliminar tus propios borradores" },
+          { status: 403 }
+        );
+      }
+    } else if (auth.role !== "admin") {
       return NextResponse.json(
         { error: "Solo los administradores pueden eliminar tickets" },
         { status: 403 }
       );
     }
 
-    const { id } = await params;
     const { error } = await auth.supabase
       .from("ticket")
       .delete()
