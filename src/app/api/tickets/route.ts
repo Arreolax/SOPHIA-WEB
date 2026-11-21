@@ -120,6 +120,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
     const priorityFilter = searchParams.get("priority");
+    const onlyMine = searchParams.get("mine") === "true";
 
     let query = supabase
       .from("ticket")
@@ -131,11 +132,10 @@ export async function GET(request: Request) {
       `)
       .order("created_at", { ascending: false });
 
-    // Usuario normal: solo ve los tickets creados por él
-    if (role === "usuario") {
+    // Usuario normal o consulta explícita de perfil (?mine=true): solo sus tickets creados
+    if (role === "usuario" || onlyMine) {
       query = query.eq("created_by", user.id);
     }
-    // Técnico y Admin: ven todos los tickets (no se aplica filtro de created_by)
 
     if (statusFilter) {
       query = query.eq("status", statusFilter.toUpperCase());

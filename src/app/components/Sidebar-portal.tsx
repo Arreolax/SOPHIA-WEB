@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Ticket,
   BookOpen,
-  Settings,
   PieChart,
   LogOut,
   User,
@@ -144,14 +143,6 @@ export default function Sidebar() {
           <div className="relative">
             {isMenuOpen && (
               <div className="absolute left-full bottom-0 ml-2 w-48 bg-[#262a40] border border-gray-600/50 rounded-lg shadow-xl overflow-hidden z-50">
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <Settings className="w-5 h-5" />
-                  <span>Settings</span>
-                </Link>
 
                 <Link
                   href="/portal/profile"

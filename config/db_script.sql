@@ -144,3 +144,7 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- username unico
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx
+ON public.users (LOWER(username));

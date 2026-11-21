@@ -10,19 +10,31 @@ function getProfileValue(...values: unknown[]): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export async function GET() {
+function getLookupClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, key);
+}
+
+async function getAuthenticatedContext() {
   const cookieStore = await cookies();
   let token = cookieStore.get("sb-access-token")?.value;
-  const refreshToken = cookieStore.get("sb-refresh-token")?.value;
+  let refreshToken = cookieStore.get("sb-refresh-token")?.value;
 
   if (!token && !refreshToken) {
-    return NextResponse.json({ error: "No hay sesión" }, { status: 401 });
+    return { error: "No hay sesión", status: 401 };
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  let supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
     global: {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     },
@@ -30,14 +42,46 @@ export async function GET() {
 
   let user = null;
 
-  if (token) {
+  if (token && refreshToken) {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: token,
+      refresh_token: refreshToken,
+    });
+
+    if (!error && data.user && data.session) {
+      user = data.user;
+      if (data.session.access_token !== token) {
+        token = data.session.access_token;
+        refreshToken = data.session.refresh_token;
+
+        cookieStore.set({
+          name: "sb-access-token",
+          value: token,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 7,
+        });
+
+        cookieStore.set({
+          name: "sb-refresh-token",
+          value: refreshToken,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 7,
+        });
+      }
+    }
+  } else if (token) {
     const { data, error } = await supabase.auth.getUser(token);
     if (!error && data.user) {
       user = data.user;
     }
   }
 
-  // Si el access_token expiró o no estaba presente, intentar renovar con sb-refresh-token
   if (!user && refreshToken) {
     const { data: refreshed, error: refreshError } =
       await supabase.auth.refreshSession({ refresh_token: refreshToken });
@@ -65,22 +109,51 @@ export async function GET() {
         path: "/",
         maxAge: 60 * 60 * 24 * 7,
       });
-
-      supabase = createClient(supabaseUrl, supabaseKey, {
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      });
     }
   }
 
   if (!user) {
-    return NextResponse.json(
-      { error: "Sesión expirada o usuario no encontrado" },
-      { status: 401 },
-    );
+    return { error: "Sesión expirada o usuario no encontrado", status: 401 };
+  }
+
+  return { supabase, user, cookieStore };
+}
+
+export async function GET(request: Request) {
+  const ctx = await getAuthenticatedContext();
+  if ("error" in ctx) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  }
+
+  const { supabase, user, cookieStore } = ctx;
+
+  // Verificación de disponibilidad de username excluyendo al usuario actual
+  const { searchParams } = new URL(request.url);
+  const checkUsername = searchParams.get("checkUsername");
+  if (checkUsername !== null) {
+    const cleanUsername = checkUsername.replace(/^@/, "").trim();
+    if (!/^[a-zA-Z0-9._]{3,20}$/.test(cleanUsername)) {
+      return NextResponse.json({ available: false, reason: "invalid" });
+    }
+
+    try {
+      const supabaseLookup = getLookupClient();
+      const { data, error } = await supabaseLookup
+        .from("users")
+        .select("id")
+        .ilike("username", cleanUsername)
+        .neq("id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error verificando username:", error);
+        return NextResponse.json({ available: true });
+      }
+
+      return NextResponse.json({ available: !data });
+    } catch {
+      return NextResponse.json({ available: true });
+    }
   }
 
   let dbUser = null;
@@ -113,34 +186,12 @@ export async function GET() {
     user.user_metadata?.apellido ||
     "";
 
-  const position = getProfileValue(
-    dbUser?.position,
-    dbUser?.puesto,
-    user.user_metadata?.position,
-    user.user_metadata?.puesto,
-  );
-  const department = getProfileValue(
-    dbUser?.department,
-    dbUser?.departamento,
-    user.user_metadata?.department,
-    user.user_metadata?.departamento,
-  );
-  const area = getProfileValue(
-    dbUser?.area,
-    user.user_metadata?.area,
-  );
-  const site = getProfileValue(
-    dbUser?.site,
-    dbUser?.sede,
-    user.user_metadata?.site,
-    user.user_metadata?.sede,
-  );
   const phone = getProfileValue(
-    dbUser?.phone,
-    dbUser?.telefono,
     user.phone,
     user.user_metadata?.phone,
     user.user_metadata?.telefono,
+    dbUser?.phone,
+    dbUser?.telefono,
   );
 
   const encryptedRoleToken = cookieStore.get("ur-token")?.value;
@@ -168,11 +219,160 @@ export async function GET() {
     username,
     role,
     email: user.email,
-    position,
-    department,
-    area,
-    site,
     phone,
+    avatar:
+      getProfileValue(
+        dbUser?.avatar_url,
+        dbUser?.avatar,
+        user.user_metadata?.avatar_url,
+      ) || "/images/avatar.jpg",
     emailVerified: Boolean(user.email_confirmed_at || user.confirmed_at),
+    notifications: {
+      cambiosEstado:
+        dbUser?.notif_status ?? user.user_metadata?.notif_status ?? true,
+      notifCorreo:
+        dbUser?.notif_email ?? user.user_metadata?.notif_email ?? true,
+      resumenSemanal:
+        dbUser?.notif_weekly ?? user.user_metadata?.notif_weekly ?? false,
+    },
   });
+}
+
+export async function PATCH(request: Request) {
+  const ctx = await getAuthenticatedContext();
+  if ("error" in ctx) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  }
+
+  const { supabase, user } = ctx;
+
+  try {
+    const body = await request.json();
+    const {
+      nombre,
+      username,
+      telefono,
+      cambiosEstado,
+      notifCorreo,
+      resumenSemanal,
+    } = body;
+
+    const cleanNombre = typeof nombre === "string" ? nombre.trim() : "";
+    const cleanUsername =
+      typeof username === "string" ? username.replace(/^@/, "").trim() : "";
+    const cleanPhone = typeof telefono === "string" ? telefono.trim() : "";
+
+    if (!cleanNombre) {
+      return NextResponse.json(
+        { error: "El nombre completo es obligatorio.", campo: "nombre" },
+        { status: 400 },
+      );
+    }
+
+    if (!/^[a-zA-Z0-9._]{3,20}$/.test(cleanUsername)) {
+      return NextResponse.json(
+        {
+          error:
+            "El nombre de usuario debe tener entre 3 y 20 caracteres (letras, números, punto o _).",
+          campo: "username",
+        },
+        { status: 400 },
+      );
+    }
+
+    // Verificar que otro usuario no tenga el mismo username
+    const supabaseLookup = getLookupClient();
+    const { data: existingUsername } = await supabaseLookup
+      .from("users")
+      .select("id")
+      .ilike("username", cleanUsername)
+      .neq("id", user.id)
+      .maybeSingle();
+
+    if (existingUsername) {
+      return NextResponse.json(
+        {
+          error: "Este nombre de usuario ya está en uso por otro usuario.",
+          campo: "username",
+        },
+        { status: 409 },
+      );
+    }
+
+    // 1. Actualizar tabla public.users (nombre y username)
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const updatePayload: Record<string, unknown> = {};
+
+    if (existingUser) {
+      if ("name" in existingUser) updatePayload.name = cleanNombre;
+      if ("nombre" in existingUser) updatePayload.nombre = cleanNombre;
+      if ("username" in existingUser) updatePayload.username = cleanUsername;
+    } else {
+      updatePayload.name = cleanNombre;
+      updatePayload.username = cleanUsername;
+    }
+
+    if (Object.keys(updatePayload).length > 0) {
+      const { error: dbError } = await supabase
+        .from("users")
+        .update(updatePayload)
+        .eq("id", user.id);
+
+      if (dbError) {
+        console.error("Error actualizando tabla users:", dbError);
+        return NextResponse.json(
+          { error: "No se pudo actualizar el perfil en la base de datos." },
+          { status: 400 },
+        );
+      }
+    }
+
+    // 2. Actualizar teléfono y metadatos en auth.users
+    const authPayload: {
+      phone?: string;
+      data: Record<string, unknown>;
+    } = {
+      data: {
+        name: cleanNombre,
+        nombre: cleanNombre,
+        username: cleanUsername,
+        phone: cleanPhone,
+        telefono: cleanPhone,
+        notif_status: cambiosEstado,
+        notif_email: notifCorreo,
+        notif_weekly: resumenSemanal,
+      },
+    };
+
+    if (cleanPhone && cleanPhone !== (user.phone || "")) {
+      authPayload.phone = cleanPhone;
+    }
+
+    const { error: authError } = await supabase.auth.updateUser(authPayload);
+
+    if (authError) {
+      console.error("Error actualizando auth.users:", authError);
+      return NextResponse.json(
+        {
+          error:
+            authError.message ||
+            "No se pudo actualizar el teléfono en Supabase Auth.",
+        },
+        { status: 400 },
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("Error procesando PATCH /api/me:", err);
+    return NextResponse.json(
+      { error: "Error interno al guardar los cambios." },
+      { status: 500 },
+    );
+  }
 }

@@ -33,6 +33,23 @@ function LoginContent() {
   const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
+    const resetForm = () => {
+      setEmailValue("");
+      setPasswordValue("");
+      setRememberMe(false);
+      setShowPassword(false);
+      setIsLoading(false);
+      setIsSuccess(false);
+      setErrorMessage("");
+    };
+
+    resetForm();
+
+    window.addEventListener("pageshow", resetForm);
+    return () => window.removeEventListener("pageshow", resetForm);
+  }, []);
+
+  useEffect(() => {
     setIsLoading(false);
     setIsSuccess(false);
     setErrorMessage("");
@@ -92,6 +109,8 @@ function LoginContent() {
               : "/portal/dashboard");
 
         setTimeout(() => {
+          setEmailValue("");
+          setPasswordValue("");
           router.push(targetUrl);
           router.refresh();
         }, 800);
@@ -120,7 +139,7 @@ function LoginContent() {
         wind={-5}
         size={100}
       />
-      
+
       <Link
         href="/"
         className="absolute top-6 left-6 z-20 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#323454] transition-colors group"
@@ -230,25 +249,6 @@ function LoginContent() {
                   <span>Bloq Mayús activado</span>
                 </div>
               )}
-            </div>
-
-            {/* Recordar sesión */}
-            <div className="flex items-center">
-              <input
-                id="remember"
-                name="remember"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                disabled={isLoading || isSuccess}
-                className="h-4 w-4 rounded border-slate-300 text-[#323454] focus:ring-[#323454] cursor-pointer"
-              />
-              <label
-                htmlFor="remember"
-                className="ml-2 block text-xs font-medium text-slate-600 cursor-pointer select-none"
-              >
-                Recordar sesión
-              </label>
             </div>
 
             {/* Mensaje de Error */}

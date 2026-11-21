@@ -23,6 +23,52 @@ function isTecnicoOrAdmin(roleStr: string): boolean {
   );
 }
 
+function formatPhoneE164(rawPhone: string): string {
+  const cleaned = rawPhone.replace(/[^\d+]/g, "");
+  if (!cleaned) return "";
+  if (cleaned.startsWith("+")) return cleaned;
+  if (cleaned.length === 10) return `+52${cleaned}`;
+  return `+${cleaned}`;
+}
+
+function getLookupClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, key);
+}
+
+/* ---------- GET: Verificar disponibilidad de username en tiempo real ---------- */
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const rawUsername = searchParams.get("username") || "";
+  const cleanUsername = rawUsername.replace(/^@/, "").trim();
+
+  if (!/^[a-zA-Z0-9._]{3,20}$/.test(cleanUsername)) {
+    return NextResponse.json({ available: false, reason: "invalid" });
+  }
+
+  try {
+    const supabaseLookup = getLookupClient();
+    const { data, error } = await supabaseLookup
+      .from("users")
+      .select("id")
+      .ilike("username", cleanUsername)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error verificando username:", error);
+      return NextResponse.json({ available: true });
+    }
+
+    return NextResponse.json({ available: !data });
+  } catch {
+    return NextResponse.json({ available: true });
+  }
+}
+
+/* ---------- POST: Registro de usuario ---------- */
 export async function POST(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -31,22 +77,106 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { email, password, name, username } = body;
+    const { email, password, name, username, phone } = body;
 
-    if (!email || !password || !name || !username) {
+    if (!email || !password || !name || !username || !phone) {
       return NextResponse.json(
         { estado: "Error", mensaje: "Todos los campos son obligatorios" },
         { status: 400 },
       );
     }
 
+    const cleanName = String(name).trim();
+    const cleanUsername = String(username).replace(/^@/, "").trim();
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanPhone = String(phone).trim();
+    const phoneDigits = cleanPhone.replace(/\D/g, "");
+    const e164Phone = formatPhoneE164(cleanPhone);
+
+    if (!/^[a-zA-ZÁÉÍÓÚáéíóúÑñÜü\s]{2,50}$/.test(cleanName)) {
+      return NextResponse.json(
+        { estado: "Error", mensaje: "El nombre ingresado no es válido." },
+        { status: 400 },
+      );
+    }
+
+    if (!/^[a-zA-Z0-9._]{3,20}$/.test(cleanUsername)) {
+      return NextResponse.json(
+        {
+          estado: "Error",
+          mensaje:
+            "El nombre de usuario debe tener entre 3 y 20 caracteres válidos.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(cleanEmail)) {
+      return NextResponse.json(
+        {
+          estado: "Error",
+          mensaje: "El formato del correo electrónico no es válido.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+      return NextResponse.json(
+        {
+          estado: "Error",
+          mensaje: "El teléfono debe contener entre 10 y 15 dígitos.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const isStrongPassword =
+      password.length >= 8 &&
+      /[A-Z]/.test(password) &&
+      /[0-9]/.test(password) &&
+      /[@#$%^&*(),.?":{}|<>]/.test(password);
+
+    if (!isStrongPassword) {
+      return NextResponse.json(
+        {
+          estado: "Error",
+          mensaje:
+            "La contraseña debe tener mínimo 8 caracteres, una mayúscula, un número y un carácter especial.",
+        },
+        { status: 400 },
+      );
+    }
+
+    // 1. Verificar que el username no exista ya en la base de datos
+    const supabaseLookup = getLookupClient();
+    const { data: existingUsername } = await supabaseLookup
+      .from("users")
+      .select("id")
+      .ilike("username", cleanUsername)
+      .maybeSingle();
+
+    if (existingUsername) {
+      return NextResponse.json(
+        {
+          estado: "Error",
+          mensaje: "Este nombre de usuario ya está en uso. Elige otro.",
+          campo: "username",
+        },
+        { status: 409 },
+      );
+    }
+
+    // 2. Registrar usuario en Supabase Auth
     const { data, error } = await supabase.auth.signUp({
-      email: email,
+      email: cleanEmail,
       password: password,
       options: {
         data: {
-          name: name,
-          username: username,
+          name: cleanName,
+          username: cleanUsername,
+          phone: cleanPhone,
+          telefono: cleanPhone,
           role: "usuario",
         },
       },
@@ -94,6 +224,21 @@ export async function POST(request: Request) {
       );
     }
 
+    if (data.session && data.user && e164Phone) {
+      try {
+        const authSessionClient = createClient(supabaseUrl, supabaseKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        await authSessionClient.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        await authSessionClient.auth.updateUser({ phone: e164Phone });
+      } catch (phoneErr) {
+        console.error("No se pudo actualizar auth.users.phone:", phoneErr);
+      }
+    }
+
     if (data.user) {
       try {
         const clientForInsert = data.session?.access_token
@@ -104,13 +249,13 @@ export async function POST(request: Request) {
                 },
               },
             })
-          : supabase;
+          : supabaseLookup;
 
         await clientForInsert.from("users").upsert({
           id: data.user.id,
-          email: email,
-          username: username,
-          name: name,
+          email: cleanEmail,
+          username: cleanUsername,
+          name: cleanName,
           role: "usuario",
         });
       } catch (err) {
@@ -161,7 +306,6 @@ export async function POST(request: Request) {
       const encryptedRole = await encryptRole(finalRole);
       const cookieStore = await cookies();
 
-      // 1. Token de acceso
       cookieStore.set({
         name: "sb-access-token",
         value: data.session.access_token,
@@ -172,7 +316,6 @@ export async function POST(request: Request) {
         maxAge: 60 * 60 * 24 * 7,
       });
 
-      // 2. Token de renovación
       cookieStore.set({
         name: "sb-refresh-token",
         value: data.session.refresh_token,
@@ -183,7 +326,6 @@ export async function POST(request: Request) {
         maxAge: 60 * 60 * 24 * 7,
       });
 
-      // 3. Rol encriptado
       cookieStore.set({
         name: "ur-token",
         value: encryptedRole,
@@ -203,23 +345,12 @@ export async function POST(request: Request) {
       });
     }
 
-    if (data.session) {
-      return NextResponse.json(
-        {
-          estado: "Error",
-          mensaje: "No se pudo identificar al usuario registrado.",
-        },
-        { status: 500 },
-      );
-    }
-
     return NextResponse.json({
       estado: "Registro Exitoso",
       mensaje: "Usuario registrado. Por favor verifica tu correo electrónico.",
       data: data.user,
       redirectTo: "/login",
     });
-
   } catch (err: any) {
     return NextResponse.json(
       { estado: "Error de Conexión 🔴", mensaje: err.message },
