@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { encryptRole } from '../../lib/session';
 
-function normalizeRole(val: any): string {
+function normalizeRole(val: unknown): string {
   if (!val) return '';
   return String(val)
     .normalize('NFD')
@@ -166,9 +166,10 @@ export async function POST(request: Request) {
       role: finalRole,
       redirectTo: redirectTo,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { estado: 'Error de Conexión 🔴', mensaje: err.message },
+      { estado: 'Error de Conexión 🔴', mensaje: message },
       { status: 500 }
     );
   }

@@ -213,7 +213,7 @@ export async function POST(
       },
       { status: 201 }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
       { error: "Error interno del servidor", detalle: err.message },
       { status: 500 }

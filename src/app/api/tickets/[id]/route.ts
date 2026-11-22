@@ -16,7 +16,7 @@ function normalizeRole(val: unknown): UserRole {
   return "usuario";
 }
 
-function esTicketBorrador(ticket: any): boolean {
+function esTicketBorrador(ticket: Record<string, unknown> | null): boolean {
   const val = ticket?.draft ?? ticket?.is_draft;
   return (
     val === true ||
@@ -161,9 +161,10 @@ export async function GET(
     }
 
     return NextResponse.json({ ticket });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const detalle = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { error: "Error interno del servidor", detalle: err.message },
+      { error: "Error interno del servidor", detalle },
       { status: 500 }
     );
   }
@@ -214,7 +215,7 @@ export async function PATCH(
           Number(body.draft) === 1 ||
           String(body.draft).toLowerCase() === "true";
 
-        const draftUpdates: Record<string, any> = {
+        const draftUpdates: Record<string, unknown> = {
           updated_at: new Date().toISOString(),
           draft: mantenerBorrador ? 1 : 0,
         };
@@ -315,7 +316,7 @@ export async function PATCH(
     }
 
     // Permisos para "tecnico" y "admin"
-    const updates: Record<string, any> = {
+    const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
@@ -402,9 +403,10 @@ export async function PATCH(
       mensaje: "Ticket actualizado correctamente",
       ticket: updatedTicket,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const detalle = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { error: "Error interno del servidor", detalle: err.message },
+      { error: "Error interno del servidor", detalle },
       { status: 500 }
     );
   }
@@ -458,9 +460,10 @@ export async function DELETE(
     return NextResponse.json({
       mensaje: "Ticket eliminado correctamente",
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const detalle = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { error: "Error interno del servidor", detalle: err.message },
+      { error: "Error interno del servidor", detalle },
       { status: 500 }
     );
   }

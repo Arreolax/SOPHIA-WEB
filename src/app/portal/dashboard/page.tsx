@@ -136,7 +136,17 @@ function mapEstado(status?: string): { estado: Estado; confirmado: boolean } {
   return { estado: "abierto", confirmado: false };
 }
 
-function detectarBorrador(raw: any): boolean {
+type RawTicket = Record<string, unknown> & {
+  draft?: unknown;
+  is_draft?: unknown;
+  isDraft?: unknown;
+  status?: unknown;
+  created_at?: unknown;
+  creator?: Record<string, unknown>;
+  assignee?: Record<string, unknown>;
+};
+
+function detectarBorrador(raw: RawTicket): boolean {
   const val = raw?.draft ?? raw?.is_draft ?? raw?.isDraft;
   return (
     val === true ||
@@ -146,7 +156,7 @@ function detectarBorrador(raw: any): boolean {
   );
 }
 
-function mapTicketFromDB(raw: any, usuarioActualId?: string): Ticket {
+function mapTicketFromDB(raw: RawTicket, usuarioActualId?: string): Ticket {
   const tiempo = tiempoRelativo(raw.created_at);
   const { estado, confirmado } = mapEstado(raw.status);
   const esBorrador = detectarBorrador(raw);
@@ -646,7 +656,7 @@ export default function MisSolicitudesPage() {
 
       if (resTickets.ok) {
         const data = await resTickets.json();
-        const mapeados: Ticket[] = (data.tickets || []).map((t: any) =>
+        const mapeados: Ticket[] = (data.tickets || []).map((t: RawTicket) =>
           mapTicketFromDB(t, userId),
         );
         setTickets(mapeados);
@@ -1066,7 +1076,7 @@ export default function MisSolicitudesPage() {
 
       {/* Toast ligero */}
       <div
-        className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-white shadow-xl transition-all duration-500 ${
+        className={`fixed left-1/2 top-6 z-100 flex -translate-x-1/2 items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-white shadow-xl transition-all duration-500 ${
           toast.show
             ? "translate-y-0 opacity-100"
             : "-translate-y-24 opacity-0 pointer-events-none"

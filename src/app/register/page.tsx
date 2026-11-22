@@ -157,7 +157,7 @@ function RegisterContent() {
         }
         const data = await res.json();
         setUsernameStatus(data.available ? "available" : "taken");
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err.name !== "AbortError") {
           setUsernameStatus("idle");
         }

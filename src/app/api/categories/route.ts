@@ -140,9 +140,10 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ categories: data });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const detalle = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { error: "Error interno del servidor", detalle: err.message },
+      { error: "Error interno del servidor", detalle },
       { status: 500 }
     );
   }
@@ -205,9 +206,10 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const detalle = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { error: "Error interno del servidor", detalle: err.message },
+      { error: "Error interno del servidor", detalle },
       { status: 500 }
     );
   }

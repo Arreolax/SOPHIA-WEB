@@ -254,7 +254,7 @@ export default function UsuariosYRolesPage() {
       </header>
 
       {/* Contenedor Principal */}
-      <main className="flex-1 max-w-[1400px] w-full mx-auto px-6 py-6 space-y-6">
+      <main className="flex-1 max-w-350 w-full mx-auto px-6 py-6 space-y-6">
         {/* Breadcrumb y Encabezado */}
         <div>
           <nav className="text-xs text-slate-400 flex items-center gap-1.5 mb-2">
@@ -691,7 +691,7 @@ export default function UsuariosYRolesPage() {
       </main>
 
       {/* Pie de página inferior */}
-      <footer className="max-w-[1400px] w-full mx-auto px-6 py-4 flex items-center justify-between text-[11px] text-slate-400">
+      <footer className="max-w-350 w-full mx-auto px-6 py-4 flex items-center justify-between text-[11px] text-slate-400">
         <span>Entorno de demostración · Datos de ejemplo</span>
         <span>14 may 2026 · 14:28 CEST</span>
       </footer>

@@ -200,7 +200,7 @@ export default function ReportesYAuditoriaPage() {
       </header>
 
       {/* Contenedor Principal */}
-      <main className="flex-1 max-w-[1400px] w-full mx-auto px-6 py-6 space-y-6">
+      <main className="flex-1 max-w-350 w-full mx-auto px-6 py-6 space-y-6">
         {/* Breadcrumb, Título y Botones */}
         <div>
           <nav className="text-xs text-slate-400 flex items-center gap-1.5 mb-2">
@@ -646,7 +646,7 @@ export default function ReportesYAuditoriaPage() {
       </main>
 
       {/* Pie de página inferior */}
-      <footer className="max-w-[1400px] w-full mx-auto px-6 py-4 flex items-center justify-between text-[11px] text-slate-400">
+      <footer className="max-w-350 w-full mx-auto px-6 py-4 flex items-center justify-between text-[11px] text-slate-400">
         <span>Entorno de demostración · Datos de ejemplo</span>
         <span>14 may 2025 · 14:28 CEST</span>
       </footer>

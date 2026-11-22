@@ -196,7 +196,7 @@ export default function DetalleTicketAdminPage() {
     <div className="mx-auto w-full max-w-6xl">
       {/* Toast */}
       <div
-        className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-white shadow-xl transition-all duration-500 ${
+        className={`fixed left-1/2 top-6 z-100 flex -translate-x-1/2 items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-white shadow-xl transition-all duration-500 ${
           toast.show ? "translate-y-0 opacity-100" : "-translate-y-24 opacity-0 pointer-events-none"
         }`}
       >
@@ -436,7 +436,7 @@ export default function DetalleTicketAdminPage() {
           </div>
 
           {/* Lista con Scroll de todos los técnicos */}
-          <div className="max-h-[340px] space-y-2.5 overflow-y-auto pr-1">
+          <div className="max-h-85 space-y-2.5 overflow-y-auto pr-1">
             {tecnicosOrdenados.map((tec, i) => {
               const saturado = tec.activos >= tec.capacidad;
               const pct = Math.min(100, Math.round((tec.activos / tec.capacidad) * 100));

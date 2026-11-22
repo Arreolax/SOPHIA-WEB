@@ -7,28 +7,20 @@ import {
   LayoutDashboard,
   Ticket,
   BookOpen,
-  Settings,
   PieChart,
   LogOut,
   User,
   CheckCircle2,
   AlertCircle,
-  UserCheck,
+  ShieldCheck,
 } from "lucide-react";
 import Image from "next/image";
 
 const navItems = [
-  { username: "Dashboard", href: "/soporte/dashboard", icon: LayoutDashboard },
-  { username: "Mis Tickets", href: "/portal/tickets/consultarMT", icon: Ticket },
-  { username: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
-  { username: "Reportes", href: "/soporte/reports", icon: PieChart },
-  { username: "Menu del tecnico", href: "/soporte", icon: UserCheck}
-]; 
-
-const renderRoleIcon = (role: string) => {
-  const norm = role?.toLowerCase() || "";
-  return <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />;
-};
+  { name: "Dashboard", href: "/soporte/dashboard", icon: LayoutDashboard },
+  { name: "IDK", href: "/soporte", icon: Ticket },
+  { name: "Menu del tecnico", href: "/soporte", icon: ShieldCheck },
+];
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -36,8 +28,8 @@ export default function Sidebar() {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [userInfo, setUserInfo] = useState({
+    name: "Cargando...",
     username: "",
-    role: "",
   });
   const [notification, setNotification] = useState({
     show: false,
@@ -60,15 +52,15 @@ export default function Sidebar() {
         if (response.ok) {
           const data = await response.json();
           setUserInfo({
-            username: data.username,
-            role: data.role,
+            name: data.name || "",
+            username: data.username || "",
           });
         } else {
-          setUserInfo({ username: "Invitado", role: "" });
+          setUserInfo({ name: "Invitado", username: "Invitado" });
         }
       } catch (error) {
         console.error("Error obteniendo usuario:", error);
-        setUserInfo({ username: "Invitado", role: "" });
+        setUserInfo({ name: "Invitado", username: "Invitado" });
       }
     };
 
@@ -102,7 +94,7 @@ export default function Sidebar() {
             const isActive = pathname === item.href;
             return (
               <Link
-                key={item.username}
+                key={item.name}
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
@@ -111,7 +103,7 @@ export default function Sidebar() {
                 }`}
               >
                 <item.icon className="w-5 h-5" />
-                <span>{item.username}</span>
+                <span>{item.name}</span>
               </Link>
             );
           })}
@@ -123,15 +115,6 @@ export default function Sidebar() {
           <div className="relative">
             {isMenuOpen && (
               <div className="absolute left-full bottom-0 ml-2 w-48 bg-[#262a40] border border-gray-600/50 rounded-lg shadow-xl overflow-hidden z-50">
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <Settings className="w-5 h-5" />
-                  <span>Settings</span>
-                </Link>
-
                 <Link
                   href="/portal/profile"
                   className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
@@ -156,7 +139,7 @@ export default function Sidebar() {
 
                         setTimeout(() => {
                           setNotification((prev) => ({ ...prev, show: false }));
-                          router.push("/login");
+                          router.push("/");
                           router.refresh();
                         }, 1500);
                       } else {
@@ -185,20 +168,21 @@ export default function Sidebar() {
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-400 relative">
                 <Image
                   src="/images/avatar.jpg"
-                  alt={userInfo.username}
+                  alt={userInfo.name || "Avatar"}
                   fill
                   sizes="32px"
                   className="object-cover"
                 />
               </div>
-              <div className="flex flex-col">
-                <span className="text-[19px] font-medium truncate max-w-35 italic">
-                  {userInfo.username || "Cargando..."}
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium text-white truncate">
+                  {userInfo.name}
                 </span>
-                <div className="flex items-center gap-1.5 text-xs text-gray-400 capitalize mt-0.5">
-                {renderRoleIcon(userInfo.role)}
-                <span className="truncate">{userInfo.role || "Cargando..."}</span>
-              </div>
+
+                <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-yellow-500 shrink-0" />
+                  <span className="truncate">Técnico</span>
+                </div>
               </div>
             </div>
           </div>

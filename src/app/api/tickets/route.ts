@@ -121,6 +121,7 @@ export async function GET(request: Request) {
     const statusFilter = searchParams.get("status");
     const priorityFilter = searchParams.get("priority");
     const onlyMine = searchParams.get("mine") === "true";
+    const onlyAssigned = searchParams.get("assigned") === "true";
 
     let query = supabase
       .from("ticket")
@@ -130,11 +131,15 @@ export async function GET(request: Request) {
         creator:created_by ( id, name, username, email ),
         assignee:assigned_to ( id, name, username, email )
       `)
+      .or("draft.is.null,draft.eq.false")
       .order("created_at", { ascending: false });
 
     // Usuario normal o consulta explícita de perfil (?mine=true): solo sus tickets creados
     if (role === "usuario" || onlyMine) {
       query = query.eq("created_by", user.id);
+    } else if (onlyAssigned) {
+      // Técnico: solo los tickets asignados a su UUID
+      query = query.eq("assigned_to", user.id);
     }
 
     if (statusFilter) {
@@ -154,9 +159,10 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ tickets: data });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const detalle = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { error: "Error interno del servidor", detalle: err.message },
+      { error: "Error interno del servidor", detalle },
       { status: 500 }
     );
   }
@@ -176,6 +182,7 @@ export async function POST(request: Request) {
     const {
       title,
       description,
+      modalidad,
       modality,
       type,
       subcategory,
@@ -183,13 +190,20 @@ export async function POST(request: Request) {
       urgency = "LOW",
       priority = "LOW",
       category_id,
-      draft = 0,
+      draft = false,
     } = body;
 
-    const isDraft = Number(draft) === 1;
+    const isDraft = draft === true || Number(draft) === 1;
 
-    // Si es envío definitivo (draft === 0), exigir todos los campos obligatorios
-    if (!isDraft && (!title || !description || !type || !category_id)) {
+    // category_id es NOT NULL en public.ticket
+    if (!category_id) {
+      return NextResponse.json(
+        { error: "El campo category_id es obligatorio" },
+        { status: 400 }
+      );
+    }
+
+    if (!isDraft && (!title || !description || !type)) {
       return NextResponse.json(
         {
           error:
@@ -199,7 +213,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Si es borrador (draft === 1), exigir al menos título o descripción
     if (isDraft && !title?.trim() && !description?.trim()) {
       return NextResponse.json(
         {
@@ -210,21 +223,23 @@ export async function POST(request: Request) {
       );
     }
 
+    const modalidadFinal = (modalidad || modality || "Sede Central / Oficina").trim();
+
     const { data: newTicket, error } = await supabase
       .from("ticket")
       .insert({
         title: title?.trim() || "Borrador sin título",
         description: description?.trim() || "",
-        modality: modality ? modality.trim() : "Sede Central / Oficina",
+        modalidad: modalidadFinal,
         type: type ? type.trim() : "INCIDENTE",
         subcategory: subcategory ? subcategory.trim() : null,
         impact: String(impact).toUpperCase(),
         urgency: String(urgency).toUpperCase(),
         priority: String(priority).toUpperCase(),
         status: "OPEN",
-        category_id: category_id || null,
+        category_id,
         created_by: user.id,
-        draft: isDraft ? 1 : 0,
+        draft: isDraft,
       })
       .select(`
         *,
@@ -240,7 +255,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Registrar estado inicial en status_history solo si no es borrador
     if (!isDraft) {
       await supabase.from("status_history").insert({
         ticket_id: newTicket.id,
@@ -259,9 +273,86 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const detalle = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { error: "Error interno del servidor", detalle: err.message },
+      { error: "Error interno del servidor", detalle },
+      { status: 500 }
+    );
+  }
+}
+
+// Actualización por lote (ej. cambiar prioridad desde la vista del técnico)
+export async function PATCH(request: Request) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    const { supabase, user, role } = auth;
+    if (role === "usuario") {
+      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { ticketIds, priority, reason } = body as {
+      ticketIds?: string[];
+      priority?: string;
+      reason?: string;
+    };
+
+    if (!Array.isArray(ticketIds) || ticketIds.length === 0 || !priority) {
+      return NextResponse.json(
+        { error: "Se requieren ticketIds y priority" },
+        { status: 400 }
+      );
+    }
+
+    const newPriority = priority.toUpperCase();
+
+    // Obtener prioridades actuales para registrar historial
+    const { data: actuales } = await supabase
+      .from("ticket")
+      .select("id, priority")
+      .in("id", ticketIds);
+
+    const { error: updateError } = await supabase
+      .from("ticket")
+      .update({
+        priority: newPriority,
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", ticketIds);
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: "Error al actualizar tickets", detalle: updateError.message },
+        { status: 400 }
+      );
+    }
+
+    if (actuales && actuales.length > 0) {
+      const historial = actuales
+        .filter((t) => t.priority !== newPriority)
+        .map((t) => ({
+          ticket_id: t.id,
+          old_priority: t.priority,
+          new_priority: newPriority,
+          changed_by: user.id,
+          reason: reason || "Actualización por lote desde panel técnico",
+        }));
+
+      if (historial.length > 0) {
+        await supabase.from("priority_history").insert(historial);
+      }
+    }
+
+    return NextResponse.json({ mensaje: "Tickets actualizados correctamente" });
+  } catch (err: unknown) {
+    const detalle = err instanceof Error ? err.message : "Error desconocido";
+    return NextResponse.json(
+      { error: "Error interno del servidor", detalle },
       { status: 500 }
     );
   }

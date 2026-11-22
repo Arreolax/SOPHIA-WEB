@@ -12,13 +12,12 @@ export default function DashboardLayout({
       
       <div className="relative flex-1 h-full overflow-hidden">
         <FallingLeavesWrapper
-          className="absolute inset-0 pointer-events-none z-0"
-          shapes={['maple', 'birch', 'oak', 'oval']}
-          count={100}
-          speed={2}
-          wind={-5}
+          className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
+          shapes={["maple", "birch", "oak", "oval"]}
+          count={25}
+          speed={0}
+          wind={0}
           size={50}
-          colors={['#ff6600', '#e9c46a', '#2a9d8f', '#ff000d']}
         />
 
         <main className="relative z-10 h-full overflow-y-auto p-8">

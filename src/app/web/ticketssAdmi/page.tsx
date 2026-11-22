@@ -323,7 +323,7 @@ export default function ColaSolicitudesPage() {
     <div className="mx-auto w-full max-w-6xl">
       {/* Toast */}
       <div
-        className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-white shadow-xl transition-all duration-500 ${
+        className={`fixed left-1/2 top-6 z-100 flex -translate-x-1/2 items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-white shadow-xl transition-all duration-500 ${
           toast.show ? "translate-y-0 opacity-100" : "-translate-y-24 opacity-0 pointer-events-none"
         }`}
       >
@@ -516,7 +516,7 @@ export default function ColaSolicitudesPage() {
       {/* Filtros */}
       <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-indigo-50/60 px-3 py-2 text-xs">
+          <div className="flex min-w-55 flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-indigo-50/60 px-3 py-2 text-xs">
             <Search className="h-3.5 w-3.5 text-slate-400" />
             <input
               type="text"
@@ -617,7 +617,7 @@ export default function ColaSolicitudesPage() {
       {vista === "tabla" ? (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-xs">
+            <table className="w-full min-w-205 text-left text-xs">
               <thead>
                 <tr className="bg-indigo-50/70 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                   <th className="w-10 px-4 py-3">
@@ -762,7 +762,7 @@ export default function ColaSolicitudesPage() {
                   <ChipPrioridad p={p} />
                   <span className="text-[11px] font-semibold text-slate-500">{col.length}</span>
                 </div>
-                <div className="flex max-h-[520px] flex-col gap-2 overflow-y-auto">
+                <div className="flex max-h-130 flex-col gap-2 overflow-y-auto">
                   {col.length === 0 && <p className="py-6 text-center text-[11px] text-slate-400">Sin tickets</p>}
                   {col.map((t) => (
                     <article

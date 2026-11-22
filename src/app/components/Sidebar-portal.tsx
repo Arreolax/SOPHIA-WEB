@@ -5,48 +5,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
-  Ticket,
-  BookOpen,
-  PieChart,
   LogOut,
   User,
   CheckCircle2,
   AlertCircle,
-  ShieldCheck,
   UserCheck,
 } from "lucide-react";
 import Image from "next/image";
 
 const navItems = [
   { name: "Dashboard", href: "/portal/dashboard", icon: LayoutDashboard },
-  { name: "Menu de los usuarios", href: "/portal", icon: ShieldCheck },
+  { name: "Menu de los usuarios", href: "/portal", icon: UserCheck },
 ];
-
-const renderRoleIcon = (role: string) => {
-  const norm = role?.toLowerCase() || "";
-  return <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />;
-};
-
-const getNavHref = (name: string, href: string, role: string) => {
-  const normalizedRole = role
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-  if (name === "Mis Tickets" && normalizedRole.includes("admin")) {
-    return "/portal/ticketssAdmi";
-  }
-
-  if (
-    name === "Mis Tickets" &&
-    normalizedRole &&
-    !normalizedRole.includes("tecnic")
-  ) {
-    return "/portal/tickets/consultarMT";
-  }
-
-  return href;
-};
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -56,7 +26,6 @@ export default function Sidebar() {
   const [userInfo, setUserInfo] = useState({
     name: "Cargando...",
     username: "",
-    role: "",
   });
   const [notification, setNotification] = useState({
     show: false,
@@ -81,13 +50,12 @@ export default function Sidebar() {
           setUserInfo({
             name: data.name || "",
             username: data.username || "",
-            role: data.role || "",
           });
         } else {
-          setUserInfo({ name: "Invitado", username: "Invitado", role: "" });
+          setUserInfo({ name: "Invitado", username: "Invitado" });
         }
       } catch (error) {
-        setUserInfo({ name: "Invitado", username: "Invitado", role: "" });
+        setUserInfo({ name: "Invitado", username: "Invitado" });
       }
     };
 
@@ -97,7 +65,7 @@ export default function Sidebar() {
   return (
     <>
       <div
-        className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-[100] flex items-center gap-2 px-6 py-3 rounded-lg shadow-xl transition-all duration-500 ${
+        className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-100 flex items-center gap-2 px-6 py-3 rounded-lg shadow-xl transition-all duration-500 ${
           notification.show
             ? "translate-y-0 opacity-100"
             : "-translate-y-24 opacity-0 pointer-events-none"
@@ -118,12 +86,11 @@ export default function Sidebar() {
       <aside className="w-64 h-screen bg-[#313652] text-gray-200 flex flex-col justify-between p-4 shrink-0">
         <nav className="flex flex-col gap-2 mt-4">
           {navItems.map((item) => {
-            const href = getNavHref(item.name, item.href, userInfo.role);
-            const isActive = pathname === href;
+            const isActive = pathname === item.href;
             return (
               <Link
                 key={item.name}
-                href={href}
+                href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
                     ? "bg-white/10 text-white font-medium"
@@ -143,7 +110,6 @@ export default function Sidebar() {
           <div className="relative">
             {isMenuOpen && (
               <div className="absolute left-full bottom-0 ml-2 w-48 bg-[#262a40] border border-gray-600/50 rounded-lg shadow-xl overflow-hidden z-50">
-
                 <Link
                   href="/portal/profile"
                   className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
@@ -197,7 +163,7 @@ export default function Sidebar() {
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-400 relative">
                 <Image
                   src="/images/avatar.jpg"
-                  alt="Sarah J."
+                  alt="Avatar de usuario"
                   fill
                   sizes="32px"
                   className="object-cover"
@@ -208,11 +174,9 @@ export default function Sidebar() {
                   {userInfo.name}
                 </span>
 
-                <div className="flex items-center gap-1.5 text-xs text-gray-400 capitalize mt-0.5">
-                  {renderRoleIcon(userInfo.role)}
-                  <span className="truncate">
-                    {userInfo.role || "Cargando..."}
-                  </span>
+                <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
+                  <UserCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span className="truncate">Usuario</span>
                 </div>
               </div>
             </div>

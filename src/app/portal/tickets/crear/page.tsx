@@ -808,13 +808,14 @@ function CrearSolicitudContent() {
         router.push("/portal/dashboard");
         router.refresh();
       }, 1500);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
       setModalEnvio({
         abierto: true,
         tipo: "error",
         titulo: esBorrador ? "Error al guardar borrador" : "Error al enviar la solicitud",
         mensaje:
-          err.message ||
+          message ||
           "Ocurrió un problema inesperado al procesar la solicitud. Inténtalo de nuevo.",
       });
     } finally {
@@ -841,7 +842,7 @@ function CrearSolicitudContent() {
 
       {/* Toast */}
       <div
-        className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg px-6 py-3 text-white shadow-xl transition-all duration-500 ${
+        className={`fixed left-1/2 top-6 z-100 flex -translate-x-1/2 items-center gap-2 rounded-lg px-6 py-3 text-white shadow-xl transition-all duration-500 ${
           toast.show ? "translate-y-0 opacity-100" : "-translate-y-24 opacity-0 pointer-events-none"
         } ${toast.type === "success" ? "bg-emerald-500" : "bg-red-500"}`}
       >

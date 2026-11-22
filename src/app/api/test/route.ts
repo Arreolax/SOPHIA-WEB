@@ -22,9 +22,10 @@ export async function GET() {
 
     return NextResponse.json({ estado: 'Conexión Exitosa', data });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { estado: 'Error de Conexión 🔴', mensaje: err.message },
+      { estado: 'Error de Conexión 🔴', mensaje: message },
       { status: 500 }
     );
   }
