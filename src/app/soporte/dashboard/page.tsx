@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   ArrowRight,
@@ -434,6 +435,7 @@ function TicketsSoporteSkeleton() {
 
 /* ---------- Página ---------- */
 export default function TicketsSoportePage() {
+  const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [nombreTecnico, setNombreTecnico] = useState("");
   const [cargando, setCargando] = useState(true);
@@ -495,6 +497,10 @@ export default function TicketsSoportePage() {
   const mostrarToast = (msg: string) => {
     setToast({ show: true, msg });
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 3000);
+  };
+
+  const abrirTicket = (ticket: Ticket) => {
+    router.push(`/soporte/ticketDetalle?id=${encodeURIComponent(ticket.uuid)}`);
   };
 
   const categoriasDisponibles = useMemo(() => {
@@ -973,15 +979,25 @@ export default function TicketsSoportePage() {
                       />
                     </td>
                     <td className="px-3 py-3 align-top">
-                      <p className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => abrirTicket(t)}
+                        className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-slate-800 hover:text-indigo-700"
+                      >
                         {esRiesgo(t) && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}
                         #{t.id}
-                      </p>
+                      </button>
                       <p className="mt-0.5 text-[10px] text-slate-400">{t.hace}</p>
                     </td>
                     <td className="px-3 py-3 align-top"><ChipPrioridad p={t.prioridad} /></td>
                     <td className="px-3 py-3 align-top">
-                      <p className="max-w-sm text-xs font-bold leading-snug text-slate-800">{t.asunto}</p>
+                      <button
+                        type="button"
+                        onClick={() => abrirTicket(t)}
+                        className="max-w-sm text-left text-xs font-bold leading-snug text-slate-800 hover:text-indigo-700"
+                      >
+                        {t.asunto}
+                      </button>
                       <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">{t.categoria}</span>
                         <span>• {t.contexto}</span>
@@ -1085,7 +1101,20 @@ export default function TicketsSoportePage() {
                     </p>
                   )}
                   {col.map((t) => (
-                    <article key={t.uuid} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <article
+                      key={t.uuid}
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Abrir ticket ${t.id}`}
+                      onClick={() => abrirTicket(t)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          abrirTicket(t);
+                        }
+                      }}
+                      className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
+                    >
                       <p className="flex items-center justify-between font-mono text-[10px] text-slate-500">
                         <span className="flex items-center gap-1.5">
                           {esRiesgo(t) && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}#{t.id}
