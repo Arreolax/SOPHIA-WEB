@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   ArrowRight,
@@ -173,6 +174,7 @@ function Select({
 
 /* ---------- Página ---------- */
 export default function ColaSolicitudesPage() {
+  const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>(TICKETS_INICIALES);
   const [busqueda, setBusqueda] = useState("");
   const [fPrioridad, setFPrioridad] = useState("todas");
@@ -642,13 +644,18 @@ export default function ColaSolicitudesPage() {
                   </tr>
                 )}
                 {visibles.map((t, i) => (
-                  <tr key={t.id} className={`hover:bg-slate-50 ${seleccion.includes(t.id) ? "bg-indigo-50/50" : ""}`}>
+                  <tr
+                    key={t.id}
+                    onClick={() => router.push("/soporte/assignment")}
+                    className={`cursor-pointer hover:bg-slate-50 ${seleccion.includes(t.id) ? "bg-indigo-50/50" : ""}`}
+                  >
                     <td className="px-4 py-3 align-top">
                       <input
                         type="checkbox"
                         aria-label={`Seleccionar ${t.id}`}
                         checked={seleccion.includes(t.id)}
                         onChange={() => alternarUno(t.id)}
+                        onClick={(event) => event.stopPropagation()}
                         className="mt-1 h-3.5 w-3.5 rounded border-slate-300 accent-[#313652]"
                       />
                     </td>
@@ -758,7 +765,19 @@ export default function ColaSolicitudesPage() {
                 <div className="flex max-h-[520px] flex-col gap-2 overflow-y-auto">
                   {col.length === 0 && <p className="py-6 text-center text-[11px] text-slate-400">Sin tickets</p>}
                   {col.map((t) => (
-                    <article key={t.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <article
+                      key={t.id}
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => router.push("/soporte/assignment")}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          router.push("/soporte/assignment");
+                        }
+                      }}
+                      className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+                    >
                       <p className="flex items-center justify-between font-mono text-[10px] text-slate-500">
                         <span className="flex items-center gap-1.5">
                           {t.riesgoSla && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}#{t.id}
