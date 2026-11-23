@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/app/lib/supabaseClient";
 import {
   AlertCircle,
   AlertTriangle,
@@ -136,14 +137,32 @@ function mapEstado(status?: string): { estado: Estado; confirmado: boolean } {
   return { estado: "abierto", confirmado: false };
 }
 
-type RawTicket = Record<string, unknown> & {
-  draft?: unknown;
-  is_draft?: unknown;
-  isDraft?: unknown;
-  status?: unknown;
-  created_at?: unknown;
-  creator?: Record<string, unknown>;
-  assignee?: Record<string, unknown>;
+type RawTicket = {
+  id?: string;
+  title?: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  category?: { id?: string; name?: string } | null;
+  subcategory?: string | null;
+  type?: string;
+  created_at?: string;
+  updated_at?: string;
+  resolution?: string;
+  assigned_to?: string | null;
+  draft?: boolean | number | string;
+  is_draft?: boolean | number | string;
+  isDraft?: boolean | number | string;
+  creator?: { id?: string; name?: string; username?: string; email?: string } | null;
+  assignee?: { id?: string; name?: string; username?: string; email?: string } | null;
+  comments?: Array<{
+    id: string;
+    content: string;
+    created_at?: string;
+    user?: { id?: string; name?: string; username?: string; role?: string } | null;
+  }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
 };
 
 function detectarBorrador(raw: RawTicket): boolean {
@@ -178,7 +197,9 @@ function mapTicketFromDB(raw: RawTicket, usuarioActualId?: string): Ticket {
 
   if (Array.isArray(raw.comments) && raw.comments.length > 0) {
     const comentariosOrdenados = [...raw.comments].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      (a, b) =>
+        new Date(a.created_at || 0).getTime() -
+        new Date(b.created_at || 0).getTime(),
     );
 
     for (const c of comentariosOrdenados) {
@@ -211,7 +232,7 @@ function mapTicketFromDB(raw: RawTicket, usuarioActualId?: string): Ticket {
   }
 
   return {
-    id: raw.id,
+    id: String(raw.id || ""),
     codigoCorto: String(raw.id).slice(0, 8).toUpperCase(),
     titulo: raw.title || "Borrador sin título",
     resumen:
@@ -607,14 +628,20 @@ export default function MisSolicitudesPage() {
   const [busqueda, setBusqueda] = useState("");
   const [vista, setVista] = useState<"dividida" | "compacta">("dividida");
   const [respuesta, setRespuesta] = useState("");
+  const [enviandoComentario, setEnviandoComentario] = useState(false);
   const [actualizando, setActualizando] = useState(false);
 
   // Estado del modal de confirmación antes de cerrar
   const [ticketACerrar, setTicketACerrar] = useState<Ticket | null>(null);
 
-  const [toast, setToast] = useState<{ show: boolean; msg: string }>({
+  const [toast, setToast] = useState<{
+    show: boolean;
+    msg: string;
+    tipo?: "success" | "error";
+  }>({
     show: false,
     msg: "",
+    tipo: "success",
   });
 
   const [actionModal, setActionModal] = useState<ModalState>({
@@ -626,8 +653,8 @@ export default function MisSolicitudesPage() {
 
   const respuestaRef = useRef<HTMLTextAreaElement>(null);
 
-  const mostrarToast = (msg: string) => {
-    setToast({ show: true, msg });
+  const mostrarToast = (msg: string, tipo: "success" | "error" = "success") => {
+    setToast({ show: true, msg, tipo });
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 3000);
   };
 
@@ -685,32 +712,151 @@ export default function MisSolicitudesPage() {
     cargarTickets();
   }, [cargarTickets]);
 
-  /* Cargar detalle y comentarios del ticket seleccionado */
-  useEffect(() => {
-    if (!seleccionadoId) return;
-    const actual = tickets.find((t) => t.id === seleccionadoId);
-    if (!actual || actual.detalleCargado || actual.esBorrador) return;
-
-    const cargarDetalle = async () => {
+  /* Recargar detalle y comentarios de un ticket específico */
+  const recargarTicketDetalle = useCallback(
+    async (id: string, alertarNuevo = false) => {
+      if (!id) return;
       try {
-        const res = await fetch(`/api/tickets/${seleccionadoId}`, {
+        const res = await fetch(`/api/tickets/${encodeURIComponent(id)}`, {
+          cache: "no-store",
           credentials: "include",
         });
         if (!res.ok) return;
         const data = await res.json();
         if (data.ticket) {
           const detallado = mapTicketFromDB(data.ticket, usuarioActual.id);
-          setTickets((prev) =>
-            prev.map((item) => (item.id === seleccionadoId ? detallado : item)),
-          );
+          setTickets((prev) => {
+            const actual = prev.find((item) => item.id === id);
+            if (!actual) return prev;
+
+            const totalAntes = actual.mensajes.length;
+            const totalDespues = detallado.mensajes.length;
+            const ultimoIdAntes = actual.mensajes[totalAntes - 1]?.id;
+            const ultimoIdDespues = detallado.mensajes[totalDespues - 1]?.id;
+            const comentariosCambiaron =
+              totalAntes !== totalDespues || ultimoIdAntes !== ultimoIdDespues;
+            const estadoCambio = actual.estadoRaw !== detallado.estadoRaw;
+            const tecnicoCambio =
+              actual.tecnico.nombre !== detallado.tecnico.nombre ||
+              actual.tieneTecnicoAsignado !== detallado.tieneTecnicoAsignado;
+
+            // Si no cambió nada y ya estaba cargado, evitar re-renderizado
+            if (
+              !comentariosCambiaron &&
+              !estadoCambio &&
+              !tecnicoCambio &&
+              actual.detalleCargado
+            ) {
+              return prev;
+            }
+
+            // Notificar al usuario si hay un nuevo mensaje de otra persona (ej. técnico)
+            if (alertarNuevo && totalDespues > totalAntes) {
+              const ultimoMensaje = detallado.mensajes[totalDespues - 1];
+              if (ultimoMensaje && !ultimoMensaje.esMio) {
+                mostrarToast(
+                  `Nuevo mensaje de soporte (${ultimoMensaje.autor})`,
+                );
+              }
+            }
+
+            return prev.map((item) => (item.id === id ? detallado : item));
+          });
         }
       } catch (e) {
-        console.error("Error cargando detalle del ticket:", e);
+        console.error("Error actualizando comentarios del ticket:", e);
+      }
+    },
+    [usuarioActual.id],
+  );
+
+  /* Cargar detalle y escuchar nuevos comentarios en tiempo real del ticket que el usuario está viendo en preview */
+  useEffect(() => {
+    if (!seleccionadoId) return;
+    const ticketActual = tickets.find((t) => t.id === seleccionadoId);
+    if (ticketActual?.esBorrador) return;
+
+    let activo = true;
+
+    // Carga inicial o actualización si aún no tiene comentarios
+    if (!ticketActual?.detalleCargado) {
+      void recargarTicketDetalle(seleccionadoId, false);
+    }
+
+    // 1. Suscripción instantánea mediante canal Supabase Realtime para la tabla comment y ticket
+    let canal: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      canal = supabase
+        .channel(`ticket-preview-${seleccionadoId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "comment",
+            filter: `ticket_id=eq.${seleccionadoId}`,
+          },
+          () => {
+            if (activo) {
+              void recargarTicketDetalle(seleccionadoId, true);
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "ticket",
+            filter: `id=eq.${seleccionadoId}`,
+          },
+          () => {
+            if (activo) {
+              void recargarTicketDetalle(seleccionadoId, true);
+            }
+          },
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn("No se pudo iniciar canal Realtime de Supabase:", e);
+    }
+
+    // 2. Polling inteligente como respaldo cada 3 segundos mientras el usuario tenga el ticket en preview
+    const timer = setInterval(() => {
+      if (
+        activo &&
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible"
+      ) {
+        void recargarTicketDetalle(seleccionadoId, true);
+      }
+    }, 3000);
+
+    const onVisible = () => {
+      if (
+        activo &&
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible"
+      ) {
+        void recargarTicketDetalle(seleccionadoId, true);
       }
     };
 
-    cargarDetalle();
-  }, [seleccionadoId, tickets, usuarioActual.id]);
+    window.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+
+    return () => {
+      activo = false;
+      clearInterval(timer);
+      window.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      if (canal) {
+        try {
+          supabase.removeChannel(canal);
+        } catch {}
+      }
+    };
+  }, [seleccionadoId, recargarTicketDetalle]);
 
   const cuenta = {
     todos: tickets.filter((t) => !t.esBorrador).length,
@@ -822,42 +968,25 @@ export default function MisSolicitudesPage() {
   /* Enviar comentario al técnico */
   const enviarRespuesta = async () => {
     if (!seleccionado || seleccionado.esBorrador) {
-      setActionModal({
-        open: true,
-        status: "error",
-        title: "Acción no disponible",
-        description: "No puedes comentar en un ticket que aún es borrador.",
-      });
+      mostrarToast("No puedes comentar en un ticket que aún es borrador.", "error");
       return;
     }
 
     if (!seleccionado.tieneTecnicoAsignado) {
-      setActionModal({
-        open: true,
-        status: "error",
-        title: "Aún sin técnico asignado",
-        description:
-          "No puedes registrar comentarios hasta que un técnico sea asignado a tu solicitud.",
-      });
+      mostrarToast(
+        "No puedes comentar hasta que un técnico sea asignado.",
+        "error",
+      );
       return;
     }
 
     if (respuesta.trim().length === 0) {
-      setActionModal({
-        open: true,
-        status: "error",
-        title: "Mensaje vacío",
-        description: "Por favor escribe una respuesta o aclaración antes de enviar.",
-      });
+      mostrarToast("Escribe una respuesta o aclaración antes de enviar.", "error");
+      respuestaRef.current?.focus();
       return;
     }
 
-    setActionModal({
-      open: true,
-      status: "loading",
-      title: "Enviando comentario...",
-      description: "Guardando tu mensaje en el historial de conversación.",
-    });
+    setEnviandoComentario(true);
 
     try {
       const res = await fetch(`/api/tickets/${seleccionado.id}/comments`, {
@@ -870,13 +999,10 @@ export default function MisSolicitudesPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setActionModal({
-          open: true,
-          status: "error",
-          title: "No se pudo enviar el comentario",
-          description:
-            data.error || "Ocurrió un error al registrar tu respuesta en el ticket.",
-        });
+        mostrarToast(
+          data.error || "No se pudo enviar el comentario.",
+          "error",
+        );
         return;
       }
 
@@ -903,21 +1029,14 @@ export default function MisSolicitudesPage() {
       });
 
       setRespuesta("");
-      setActionModal({
-        open: true,
-        status: "success",
-        title: "¡Respuesta enviada!",
-        description:
-          "Tu comentario se ha guardado correctamente y el técnico asignado ha sido notificado.",
-      });
+      mostrarToast("Respuesta enviada correctamente", "success");
     } catch {
-      setActionModal({
-        open: true,
-        status: "error",
-        title: "Error de conexión",
-        description:
-          "No se pudo conectar con el servidor para enviar tu respuesta. Inténtalo de nuevo.",
-      });
+      mostrarToast(
+        "Error de conexión al enviar tu respuesta. Inténtalo de nuevo.",
+        "error",
+      );
+    } finally {
+      setEnviandoComentario(false);
     }
   };
 
@@ -1076,14 +1195,20 @@ export default function MisSolicitudesPage() {
 
       {/* Toast ligero */}
       <div
-        className={`fixed left-1/2 top-6 z-100 flex -translate-x-1/2 items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-white shadow-xl transition-all duration-500 ${
+        className={`fixed left-1/2 top-6 z-100 flex -translate-x-1/2 items-center gap-2 rounded-lg px-6 py-3 text-white shadow-xl transition-all duration-500 ${
+          toast.tipo === "error" ? "bg-red-500" : "bg-emerald-500"
+        } ${
           toast.show
             ? "translate-y-0 opacity-100"
             : "-translate-y-24 opacity-0 pointer-events-none"
         }`}
       >
-        <CheckCircle2 className="h-5 w-5" />
-        <span className="font-medium">{toast.msg}</span>
+        {toast.tipo === "error" ? (
+          <XCircle className="h-5 w-5 shrink-0" />
+        ) : (
+          <CheckCircle2 className="h-5 w-5 shrink-0" />
+        )}
+        <span className="text-sm font-medium">{toast.msg}</span>
       </div>
 
       {/* Barra superior */}
@@ -1525,14 +1650,16 @@ export default function MisSolicitudesPage() {
                           ref={respuestaRef}
                           rows={4}
                           value={respuesta}
+                          disabled={enviandoComentario}
                           onChange={(e) => setRespuesta(e.target.value)}
                           placeholder="Escribe tu respuesta o aclaración para el técnico..."
-                          className="w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-3 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#313652]"
+                          className="w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-3 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#313652] disabled:bg-slate-50 disabled:opacity-70"
                         />
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                           <button
                             type="button"
-                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                            disabled={enviandoComentario}
+                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
                           >
                             <Paperclip className="h-4 w-4" />
                             Adjuntar nueva captura/archivo
@@ -1540,14 +1667,20 @@ export default function MisSolicitudesPage() {
                           <button
                             type="button"
                             onClick={enviarRespuesta}
-                            disabled={
-                              actionModal.open &&
-                              actionModal.status === "loading"
-                            }
-                            className="flex items-center gap-2 rounded-lg bg-[#313652] px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-[#262a40] disabled:opacity-60"
+                            disabled={enviandoComentario}
+                            className="flex items-center gap-2 rounded-lg bg-[#313652] px-4 py-2.5 text-xs font-semibold text-white shadow-md transition-colors hover:bg-[#262a40] disabled:cursor-not-allowed disabled:opacity-70"
                           >
-                            <Send className="h-4 w-4" />
-                            Enviar respuesta al técnico
+                            {enviandoComentario ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Enviando...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4" />
+                                Enviar respuesta al técnico
+                              </>
+                            )}
                           </button>
                         </div>
                       </>

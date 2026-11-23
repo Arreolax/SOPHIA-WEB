@@ -214,8 +214,9 @@ export async function POST(
       { status: 201 }
     );
   } catch (err: unknown) {
+    const detalle = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "Error interno del servidor", detalle: err.message },
+      { error: "Error interno del servidor", detalle },
       { status: 500 }
     );
   }

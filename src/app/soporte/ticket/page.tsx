@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/app/lib/supabaseClient";
 import {
   Activity,
   AlertCircle,
@@ -248,32 +249,19 @@ function DetalleTicketTecnicoContent() {
     type: "success",
   });
 
-  const [historial, setHistorial] = useState<HistorialItem[]>([
-    {
-      id: "h1",
-      hora: "Hace 5 min",
-      autor: "Mesa de Ayuda",
-      accion: "Ticket asignado al técnico responsable para atención.",
-    },
-    {
-      id: "h2",
-      hora: "Hace 12 min",
-      autor: "Elena Morales",
-      accion: "Ticket registrado desde el Portal de Autoservicio.",
-    },
-  ]);
+  const [historial, setHistorial] = useState<HistorialItem[]>([]);
 
   const mostrarToast = useCallback((msg: string, type: "success" | "error" = "success") => {
     setToast({ show: true, msg, type });
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 3200);
   }, []);
 
-  /* Cargar los datos del ticket seleccionado desde la API. */
+  /* Cargar los datos del ticket seleccionado y escuchar nuevos comentarios en tiempo real */
   useEffect(() => {
     let activo = true;
     if (!ticketId) return;
 
-    const cargarTicket = async () => {
+    const cargarTicket = async (silencioso = false) => {
       try {
         const res = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}`, {
           cache: "no-store",
@@ -283,6 +271,7 @@ function DetalleTicketTecnicoContent() {
         if (!activo) return;
 
         if (!res.ok) {
+          if (silencioso) return;
           throw new Error(
             res.status === 404
               ? "No se encontró el ticket seleccionado."
@@ -293,6 +282,7 @@ function DetalleTicketTecnicoContent() {
         const data = await res.json();
         const t = data.ticket;
         if (!t) {
+          if (silencioso) return;
           throw new Error("La respuesta no contiene los datos del ticket.");
         }
 
@@ -303,6 +293,7 @@ function DetalleTicketTecnicoContent() {
         )
           .slice(0, 8)
           .toUpperCase()}`;
+
         const normalizado: TicketDetalle = {
           id: t.id || ticketId,
           code: t.code || codigo,
@@ -322,12 +313,12 @@ function DetalleTicketTecnicoContent() {
           category: t.category || null,
           requester: solicitante
             ? {
-                name: solicitante.name || solicitante.username || solicitante.email || "Usuario",
-                department: solicitante.department || null,
-                area: solicitante.area || null,
-                email: solicitante.email || "No disponible",
-                avatar: "/images/avatar.jpg",
-              }
+              name: solicitante.name || solicitante.username || solicitante.email || "Usuario",
+              department: solicitante.department || null,
+              area: solicitante.area || null,
+              email: solicitante.email || "No disponible",
+              avatar: "/images/avatar.jpg",
+            }
             : undefined,
           assigned_technician: tecnico
             ? { name: tecnico.name || tecnico.username || "Técnico", role: tecnico.role }
@@ -337,19 +328,70 @@ function DetalleTicketTecnicoContent() {
               file_name?: string;
               file_size?: number;
               file_type?: string;
+              file_path?: string;
             }) => ({
               id: attachment.id,
               name: attachment.name || attachment.file_name || "Archivo adjunto",
               size: attachment.size || attachment.file_size || 0,
               type: attachment.type || attachment.file_type || "application/octet-stream",
-              url: attachment.url,
+              url: attachment.url || attachment.file_path,
             }),
           ),
         };
 
+        const comentariosOrdenados = Array.isArray(t.comments)
+          ? [...t.comments].sort((a, b) => {
+            const fechaA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const fechaB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return fechaB - fechaA;
+          })
+          : [];
+
+        const comentariosApi: HistorialItem[] = comentariosOrdenados.map(
+          (c: {
+            id: string;
+            content: string;
+            created_at?: string;
+            user?: { name?: string; username?: string; role?: string } | null;
+          }) => ({
+            id: c.id,
+            hora: c.created_at ? new Date(c.created_at).toLocaleString("es-MX") : "Registrado",
+            autor: c.user?.name || c.user?.username || "Soporte",
+            accion: c.content,
+          }),
+        );
+
+        if (t.diagnosis) {
+          comentariosApi.unshift({
+            id: "diag-inicial",
+            hora: t.updated_at ? new Date(t.updated_at).toLocaleString("es-MX") : "Diagnóstico",
+            autor: tecnico?.name || "Técnico",
+            accion: `Diagnóstico: ${t.diagnosis}`,
+          });
+        }
+
+        const historialFinal =
+          comentariosApi.length > 0
+            ? comentariosApi
+            : [
+              {
+                id: "h-init",
+                hora: normalizado.created_at,
+                autor: solicitante?.name || "Solicitante",
+                accion: "Ticket registrado en el sistema.",
+              },
+            ];
+
+        setHistorial((prev) => {
+          if (silencioso && prev.length > 0 && historialFinal.length > prev.length) {
+            mostrarToast("Nuevo comentario recibido en este ticket");
+          }
+          return historialFinal;
+        });
+
         setResultadoCarga({ ticketId, ticket: normalizado, error: "" });
       } catch (error) {
-        if (!activo) return;
+        if (!activo || silencioso) return;
         setResultadoCarga({
           ticketId,
           ticket: null,
@@ -358,11 +400,70 @@ function DetalleTicketTecnicoContent() {
       }
     };
 
-    void cargarTicket();
+    void cargarTicket(false);
+
+    // 1. Canal Supabase Realtime para recibir cambios en vivo
+    let canal: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      canal = supabase
+        .channel(`ticket-tecnico-${ticketId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "comment",
+            filter: `ticket_id=eq.${ticketId}`,
+          },
+          () => {
+            if (activo) void cargarTicket(true);
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "ticket",
+            filter: `id=eq.${ticketId}`,
+          },
+          () => {
+            if (activo) void cargarTicket(true);
+          },
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn("No se pudo iniciar canal Realtime en vista técnica:", e);
+    }
+
+    // 2. Polling de respaldo cada 3.5 segundos
+    const timer = setInterval(() => {
+      if (activo && typeof document !== "undefined" && document.visibilityState === "visible") {
+        void cargarTicket(true);
+      }
+    }, 3500);
+
+    const onVisible = () => {
+      if (activo && typeof document !== "undefined" && document.visibilityState === "visible") {
+        void cargarTicket(true);
+      }
+    };
+
+    window.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+
     return () => {
       activo = false;
+      clearInterval(timer);
+      window.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      if (canal) {
+        try {
+          supabase.removeChannel(canal);
+        } catch {}
+      }
     };
-  }, [ticketId]);
+  }, [ticketId, mostrarToast]);
 
   const resultadoActual =
     resultadoCarga.ticketId === ticketId ? resultadoCarga : null;
@@ -385,17 +486,22 @@ function DetalleTicketTecnicoContent() {
       },
       ...prev,
     ]);
-    mostrarToast(`Estado del ticket actualizado a ${MAPA_ESTADO[nuevoEstado].label}`);
 
     try {
-      await fetch(`/api/tickets/${encodeURIComponent(ticketId)}`, {
+      const res = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nuevoEstado }),
       });
+
+      if (!res.ok) {
+        throw new Error("Error al guardar el estado");
+      }
+
+      mostrarToast(`Estado del ticket actualizado a ${MAPA_ESTADO[nuevoEstado].label}`);
     } catch {
-      // Silencioso en modo demo
+      mostrarToast("No se pudo guardar el cambio de estado en el servidor", "error");
     }
   };
 
@@ -408,18 +514,44 @@ function DetalleTicketTecnicoContent() {
     setGuardandoNota(true);
     const texto = notaTecnica.trim();
 
-    setHistorial((prev) => [
-      {
-        id: `h-${Date.now()}`,
-        hora: "Ahora",
-        autor: `${ticket?.assigned_technician?.name || "Técnico"} (Técnico)`,
-        accion: texto,
-      },
-      ...prev,
-    ]);
-    setNotaTecnica("");
-    setGuardandoNota(false);
-    mostrarToast("Nota técnica registrada en el historial");
+    try {
+      // Intentar guardar en /api/tickets/[id]/comments y fallback a PATCH diagnosis
+      let res = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}/comments`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: texto }),
+      });
+
+      if (!res.ok) {
+        res = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ diagnosis: texto }),
+        });
+      }
+
+      if (!res.ok) {
+        throw new Error("Error al registrar el avance");
+      }
+
+      setHistorial((prev) => [
+        {
+          id: `h-${Date.now()}`,
+          hora: "Ahora",
+          autor: `${ticket?.assigned_technician?.name || "Técnico"} (Técnico)`,
+          accion: texto,
+        },
+        ...prev,
+      ]);
+      setNotaTecnica("");
+      mostrarToast("Nota técnica registrada en el historial");
+    } catch {
+      mostrarToast("No se pudo guardar la nota técnica", "error");
+    } finally {
+      setGuardandoNota(false);
+    }
   };
 
   const handleConsultarIA = () => {
@@ -460,9 +592,8 @@ function DetalleTicketTecnicoContent() {
     <div className="mx-auto w-full max-w-6xl">
       {/* Toast */}
       <div
-        className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg px-6 py-3 text-white shadow-xl transition-all duration-500 ${
-          toast.show ? "translate-y-0 opacity-100" : "-translate-y-24 opacity-0 pointer-events-none"
-        } ${toast.type === "success" ? "bg-emerald-500" : "bg-red-500"}`}
+        className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg px-6 py-3 text-white shadow-xl transition-all duration-500 ${toast.show ? "translate-y-0 opacity-100" : "-translate-y-24 opacity-0 pointer-events-none"
+          } ${toast.type === "success" ? "bg-emerald-500" : "bg-red-500"}`}
       >
         {toast.type === "success" ? (
           <CheckCircle2 className="h-5 w-5" />
@@ -534,7 +665,7 @@ function DetalleTicketTecnicoContent() {
             <span className="text-[11px] font-semibold text-slate-500">Estado:</span>
             <select
               value={estadoActual}
-              onChange={(e) => handleCambiarEstado(e.target.value as EstadoTicket)}
+              onChange={(e) => void handleCambiarEstado(e.target.value as EstadoTicket)}
               aria-label="Cambiar estado del ticket"
               className="bg-transparent text-xs font-bold text-slate-800 outline-none"
             >
@@ -542,6 +673,7 @@ function DetalleTicketTecnicoContent() {
               <option value="IN_PROGRESS">En curso</option>
               <option value="WAITING_USER">En espera de usuario</option>
               <option value="RESOLVED">Resuelto</option>
+              <option value="CLOSED">Cerrado</option>
             </select>
           </div>
 
@@ -556,9 +688,9 @@ function DetalleTicketTecnicoContent() {
         </div>
       </div>
 
-      {/* Layout de 2 Columnas idéntico al formulario de creación */}
+      {/* Layout de 2 Columnas */}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* ============ Columna Principal (Datos completos del ticket) ============ */}
+        {/* ============ Columna Principal ============ */}
         <div className="flex flex-col gap-6">
           {/* Bloque 1: Clasificación y Modalidad */}
           <Card>
@@ -608,9 +740,8 @@ function DetalleTicketTecnicoContent() {
                   Tiempo SLA restante
                 </p>
                 <p
-                  className={`mt-1 text-sm font-bold ${
-                    ticket.priority === "CRITICAL" ? "text-red-600" : "text-slate-800"
-                  }`}
+                  className={`mt-1 text-sm font-bold ${ticket.priority === "CRITICAL" ? "text-red-600" : "text-slate-800"
+                    }`}
                 >
                   {ticket.sla_remaining}
                 </p>
@@ -742,7 +873,7 @@ function DetalleTicketTecnicoContent() {
                   type="text"
                   value={notaTecnica}
                   onChange={(e) => setNotaTecnica(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleRegistrarAvance()}
+                  onKeyDown={(e) => e.key === "Enter" && void handleRegistrarAvance()}
                   placeholder="Escribe un diagnóstico técnico o nota de seguimiento..."
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#313652] focus:bg-white"
                 />
@@ -750,11 +881,11 @@ function DetalleTicketTecnicoContent() {
               <button
                 type="button"
                 disabled={guardandoNota}
-                onClick={handleRegistrarAvance}
+                onClick={() => void handleRegistrarAvance()}
                 className="flex items-center justify-center gap-2 rounded-xl bg-[#313652] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#262a40] disabled:opacity-50"
               >
                 <Send className="h-3.5 w-3.5" />
-                Registrar avance
+                {guardandoNota ? "Guardando..." : "Registrar avance"}
               </button>
             </div>
 
@@ -779,7 +910,7 @@ function DetalleTicketTecnicoContent() {
 
         {/* ============ Columna Lateral ============ */}
         <aside className="flex flex-col gap-6">
-          {/* Tarjeta del Solicitante (mismo estilo que en Crear Solicitud) */}
+          {/* Tarjeta del Solicitante */}
           <Card className="!p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[10px] font-bold uppercase tracking-wide text-slate-500">

@@ -143,6 +143,7 @@ export async function GET(
         attachments:attachment ( id, file_name, file_type, file_size, file_path, uploaded_at )
       `)
       .eq("id", id)
+      .order("created_at", { referencedTable: "comment", ascending: false })
       .maybeSingle();
 
     if (error || !ticket) {

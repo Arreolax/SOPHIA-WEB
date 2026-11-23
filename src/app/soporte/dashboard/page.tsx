@@ -263,7 +263,6 @@ function Select({
 function TicketsSoporteSkeleton() {
   return (
     <div className="mx-auto w-full max-w-6xl animate-pulse" aria-busy="true" aria-label="Cargando panel de tickets">
-      {/* Barra superior */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-1 flex-wrap items-center gap-3">
           <div className="h-9 w-full max-w-md rounded-xl bg-slate-200/80" />
@@ -276,7 +275,6 @@ function TicketsSoporteSkeleton() {
         </div>
       </div>
 
-      {/* Encabezado */}
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div className="w-full max-w-md space-y-2">
           <div className="h-7 w-52 rounded-lg bg-slate-200/90" />
@@ -290,7 +288,6 @@ function TicketsSoporteSkeleton() {
         </div>
       </div>
 
-      {/* Indicadores KPI */}
       <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, idx) => (
           <div key={idx} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -307,7 +304,6 @@ function TicketsSoporteSkeleton() {
         ))}
       </div>
 
-      {/* Banner de guardia */}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-slate-200/90" />
@@ -323,7 +319,6 @@ function TicketsSoporteSkeleton() {
         </div>
       </div>
 
-      {/* Filtros */}
       <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div className="h-9 min-w-55 flex-1 rounded-lg bg-slate-200/80" />
@@ -340,7 +335,6 @@ function TicketsSoporteSkeleton() {
         </div>
       </div>
 
-      {/* Tabla Skeleton */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-275 text-left">
@@ -402,7 +396,6 @@ function TicketsSoporteSkeleton() {
           </table>
         </div>
 
-        {/* Paginación Skeleton */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
           <div className="flex items-center gap-4">
             <div className="h-3.5 w-48 rounded bg-slate-200/70" />
@@ -416,7 +409,6 @@ function TicketsSoporteSkeleton() {
         </div>
       </div>
 
-      {/* Protocolo rápido Skeleton */}
       <div className="mt-6 max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
         <div className="h-4 w-40 rounded bg-slate-200/90" />
         <div className="space-y-1.5">
@@ -500,7 +492,7 @@ export default function TicketsSoportePage() {
   };
 
   const abrirTicket = (ticket: Ticket) => {
-    router.push(`/soporte/ticketDetalle?id=${encodeURIComponent(ticket.uuid)}`);
+    router.push(`/soporte/ticket?id=${encodeURIComponent(ticket.uuid)}`);
   };
 
   const categoriasDisponibles = useMemo(() => {
@@ -968,8 +960,12 @@ export default function TicketsSoportePage() {
                   </tr>
                 )}
                 {visibles.map((t, i) => (
-                  <tr key={t.uuid} className={`hover:bg-slate-50 ${seleccion.includes(t.uuid) ? "bg-indigo-50/50" : ""}`}>
-                    <td className="px-4 py-3 align-top">
+                  <tr
+                    key={t.uuid}
+                    onClick={() => abrirTicket(t)}
+                    className={`cursor-pointer hover:bg-slate-50 ${seleccion.includes(t.uuid) ? "bg-indigo-50/50" : ""}`}
+                  >
+                    <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         aria-label={`Seleccionar ${t.id}`}
@@ -981,7 +977,10 @@ export default function TicketsSoportePage() {
                     <td className="px-3 py-3 align-top">
                       <button
                         type="button"
-                        onClick={() => abrirTicket(t)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          abrirTicket(t);
+                        }}
                         className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-slate-800 hover:text-indigo-700"
                       >
                         {esRiesgo(t) && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}
@@ -993,7 +992,10 @@ export default function TicketsSoportePage() {
                     <td className="px-3 py-3 align-top">
                       <button
                         type="button"
-                        onClick={() => abrirTicket(t)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          abrirTicket(t);
+                        }}
                         className="max-w-sm text-left text-xs font-bold leading-snug text-slate-800 hover:text-indigo-700"
                       >
                         {t.asunto}
