@@ -19,6 +19,7 @@ import {
   Home,
   Laptop,
   Loader2,
+  Maximize2,
   MessagesSquare,
   Paperclip,
   Plus,
@@ -29,6 +30,7 @@ import {
   Search,
   Send,
   SlidersHorizontal,
+  X,
   XCircle,
 } from "lucide-react";
 
@@ -43,6 +45,13 @@ type ModalState = {
   description: string;
 };
 
+type AdjuntoMensaje = {
+  url?: string;
+  nombre: string;
+  detalle: string;
+  esImagen?: boolean;
+};
+
 type Mensaje = {
   id: string;
   autor: string;
@@ -51,7 +60,7 @@ type Mensaje = {
   hace: string;
   hora: string;
   parrafos: { t: string; b?: boolean }[];
-  adjunto?: { nombre: string; detalle: string };
+  adjunto?: AdjuntoMensaje;
 };
 
 type Ticket = {
@@ -80,6 +89,23 @@ type Ticket = {
 };
 
 /* ---------- Helpers de mapeo DB -> UI ---------- */
+function extraerAdjuntoDeContenido(rawContent?: string): {
+  texto: string;
+  adjunto?: AdjuntoMensaje;
+} {
+  if (!rawContent) return { texto: "" };
+  const match = rawContent.match(/\[ADJUNTO:(\{[\s\S]*?\})\]$/);
+  if (!match) return { texto: rawContent };
+
+  try {
+    const parsed = JSON.parse(match[1]) as AdjuntoMensaje;
+    const textoLimpio = rawContent.replace(match[0], "").trim();
+    return { texto: textoLimpio, adjunto: parsed };
+  } catch {
+    return { texto: rawContent };
+  }
+}
+
 function obtenerIniciales(nombre?: string | null): string {
   if (!nombre) return "ST";
   const partes = nombre.trim().split(/\s+/);
@@ -207,6 +233,8 @@ function mapTicketFromDB(raw: RawTicket, usuarioActualId?: string): Ticket {
       const esMio = usuarioActualId
         ? c.user?.id === usuarioActualId
         : c.user?.role === "usuario";
+      const { texto, adjunto } = extraerAdjuntoDeContenido(c.content);
+
       mensajesBase.push({
         id: c.id,
         autor: c.user?.name || c.user?.username || "Soporte TI",
@@ -214,7 +242,8 @@ function mapTicketFromDB(raw: RawTicket, usuarioActualId?: string): Ticket {
         esMio,
         hace: tCom.hace,
         hora: tCom.hora,
-        parrafos: [{ t: c.content }],
+        parrafos: texto ? [{ t: texto }] : [],
+        adjunto,
       });
     }
   }
@@ -264,6 +293,65 @@ function mapTicketFromDB(raw: RawTicket, usuarioActualId?: string): Ticket {
     mensajes: mensajesBase,
     detalleCargado: Array.isArray(raw.comments),
   };
+}
+
+/* ---------- Modal para Ampliar Captura de Pantalla ---------- */
+function ImagePreviewModal({
+  imagen,
+  onClose,
+}: {
+  imagen: { url: string; nombre: string } | null;
+  onClose: () => void;
+}) {
+  if (!imagen) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-xs"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative max-h-[90vh] max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <span className="truncate text-xs font-semibold text-slate-700">
+            {imagen.nombre}
+          </span>
+          <div className="flex items-center gap-2">
+            <a
+              href={imagen.url}
+              download={imagen.nombre}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Descargar
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar vista previa"
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="flex max-h-[80vh] items-center justify-center bg-slate-900 p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imagen.url}
+            alt={imagen.nombre}
+            className="max-h-[75vh] w-auto rounded-lg object-contain"
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ---------- Modal de Confirmación antes de Cerrar Ticket ---------- */
@@ -563,7 +651,6 @@ function ChipEstado({
     grande ? "px-3 py-1 text-xs" : "px-2.5 py-1 text-[11px]"
   }`;
 
-  // Se evalúa primero esBorrador antes de estado === "abierto"
   if (ticket.esBorrador) {
     return (
       <span
@@ -628,10 +715,15 @@ export default function MisSolicitudesPage() {
   const [busqueda, setBusqueda] = useState("");
   const [vista, setVista] = useState<"dividida" | "compacta">("dividida");
   const [respuesta, setRespuesta] = useState("");
+  const [archivoAdjunto, setArchivoAdjunto] = useState<File | null>(null);
+  const [previewAdjunto, setPreviewAdjunto] = useState<string | null>(null);
+  const [imagenAmpliada, setImagenAmpliada] = useState<{
+    url: string;
+    nombre: string;
+  } | null>(null);
   const [enviandoComentario, setEnviandoComentario] = useState(false);
   const [actualizando, setActualizando] = useState(false);
 
-  // Estado del modal de confirmación antes de cerrar
   const [ticketACerrar, setTicketACerrar] = useState<Ticket | null>(null);
 
   const [toast, setToast] = useState<{
@@ -652,6 +744,8 @@ export default function MisSolicitudesPage() {
   });
 
   const respuestaRef = useRef<HTMLTextAreaElement>(null);
+  const listaMensajesRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const mostrarToast = (msg: string, tipo: "success" | "error" = "success") => {
     setToast({ show: true, msg, tipo });
@@ -660,6 +754,53 @@ export default function MisSolicitudesPage() {
 
   const cerrarModal = () =>
     setActionModal((prev) => ({ ...prev, open: false }));
+
+  /* Gestionar selección o pegado de archivo/captura */
+  const seleccionarArchivo = (file: File | null) => {
+    if (previewAdjunto) {
+      URL.revokeObjectURL(previewAdjunto);
+    }
+
+    if (!file) {
+      setArchivoAdjunto(null);
+      setPreviewAdjunto(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      mostrarToast("La captura o archivo no debe superar los 5 MB.", "error");
+      return;
+    }
+
+    setArchivoAdjunto(file);
+    if (file.type.startsWith("image/")) {
+      setPreviewAdjunto(URL.createObjectURL(file));
+    } else {
+      setPreviewAdjunto(null);
+    }
+  };
+
+  const handlePasteImagen = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const blob = item.getAsFile();
+        if (blob) {
+          e.preventDefault();
+          const ext = blob.type.split("/")[1] || "png";
+          const captura = new File([blob], `captura-${Date.now()}.${ext}`, {
+            type: blob.type,
+          });
+          seleccionarArchivo(captura);
+          mostrarToast("Captura de pantalla pegada lista para enviar");
+        }
+        break;
+      }
+    }
+  };
 
   /* Cargar tickets creados por el usuario desde /api/tickets */
   const cargarTickets = useCallback(async (silencioso = false) => {
@@ -740,7 +881,6 @@ export default function MisSolicitudesPage() {
               actual.tecnico.nombre !== detallado.tecnico.nombre ||
               actual.tieneTecnicoAsignado !== detallado.tieneTecnicoAsignado;
 
-            // Si no cambió nada y ya estaba cargado, evitar re-renderizado
             if (
               !comentariosCambiaron &&
               !estadoCambio &&
@@ -750,7 +890,6 @@ export default function MisSolicitudesPage() {
               return prev;
             }
 
-            // Notificar al usuario si hay un nuevo mensaje de otra persona (ej. técnico)
             if (alertarNuevo && totalDespues > totalAntes) {
               const ultimoMensaje = detallado.mensajes[totalDespues - 1];
               if (ultimoMensaje && !ultimoMensaje.esMio) {
@@ -770,7 +909,7 @@ export default function MisSolicitudesPage() {
     [usuarioActual.id],
   );
 
-  /* Cargar detalle y escuchar nuevos comentarios en tiempo real del ticket que el usuario está viendo en preview */
+  /* Cargar detalle y escuchar nuevos comentarios en tiempo real */
   useEffect(() => {
     if (!seleccionadoId) return;
     const ticketActual = tickets.find((t) => t.id === seleccionadoId);
@@ -778,12 +917,10 @@ export default function MisSolicitudesPage() {
 
     let activo = true;
 
-    // Carga inicial o actualización si aún no tiene comentarios
     if (!ticketActual?.detalleCargado) {
       void recargarTicketDetalle(seleccionadoId, false);
     }
 
-    // 1. Suscripción instantánea mediante canal Supabase Realtime para la tabla comment y ticket
     let canal: ReturnType<typeof supabase.channel> | null = null;
     try {
       canal = supabase
@@ -821,7 +958,6 @@ export default function MisSolicitudesPage() {
       console.warn("No se pudo iniciar canal Realtime de Supabase:", e);
     }
 
-    // 2. Polling inteligente como respaldo cada 3 segundos mientras el usuario tenga el ticket en preview
     const timer = setInterval(() => {
       if (
         activo &&
@@ -898,6 +1034,17 @@ export default function MisSolicitudesPage() {
 
   const seleccionado = lista.find((t) => t.id === seleccionadoId) ?? lista[0];
 
+  /* Desplazar automáticamente al último mensaje cuando cambie el hilo o llegue un comentario nuevo */
+  useEffect(() => {
+    const contenedor = listaMensajesRef.current;
+    if (contenedor) {
+      contenedor.scrollTo({
+        top: contenedor.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [seleccionado?.id, seleccionado?.mensajes.length]);
+
   const actualizarTicket = (id: string, cambios: Partial<Ticket>) =>
     setTickets((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...cambios } : t)),
@@ -965,7 +1112,7 @@ export default function MisSolicitudesPage() {
     }
   };
 
-  /* Enviar comentario al técnico */
+  /* Enviar comentario y/o captura al técnico */
   const enviarRespuesta = async () => {
     if (!seleccionado || seleccionado.esBorrador) {
       mostrarToast("No puedes comentar en un ticket que aún es borrador.", "error");
@@ -980,8 +1127,11 @@ export default function MisSolicitudesPage() {
       return;
     }
 
-    if (respuesta.trim().length === 0) {
-      mostrarToast("Escribe una respuesta o aclaración antes de enviar.", "error");
+    if (respuesta.trim().length === 0 && !archivoAdjunto) {
+      mostrarToast(
+        "Escribe una respuesta o adjunta una captura antes de enviar.",
+        "error",
+      );
       respuestaRef.current?.focus();
       return;
     }
@@ -989,11 +1139,16 @@ export default function MisSolicitudesPage() {
     setEnviandoComentario(true);
 
     try {
+      const formData = new FormData();
+      formData.append("content", respuesta.trim());
+      if (archivoAdjunto) {
+        formData.append("file", archivoAdjunto);
+      }
+
       const res = await fetch(`/api/tickets/${seleccionado.id}/comments`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: respuesta.trim() }),
+        body: formData,
       });
 
       const data = await res.json();
@@ -1006,6 +1161,8 @@ export default function MisSolicitudesPage() {
         return;
       }
 
+      const { texto, adjunto } = extraerAdjuntoDeContenido(data.comment.content);
+
       const nuevo: Mensaje = {
         id: data.comment.id,
         autor: data.comment.user?.name || usuarioActual.nombre,
@@ -1016,7 +1173,8 @@ export default function MisSolicitudesPage() {
           hour: "2-digit",
           minute: "2-digit",
         }),
-        parrafos: [{ t: data.comment.content }],
+        parrafos: texto ? [{ t: texto }] : [],
+        adjunto: adjunto || data.attachment || undefined,
       };
 
       actualizarTicket(seleccionado.id, {
@@ -1029,6 +1187,7 @@ export default function MisSolicitudesPage() {
       });
 
       setRespuesta("");
+      seleccionarArchivo(null);
       mostrarToast("Respuesta enviada correctamente", "success");
     } catch {
       mostrarToast(
@@ -1183,6 +1342,12 @@ export default function MisSolicitudesPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl">
+      {/* Modal de Vista Previa Ampliada de Imagen */}
+      <ImagePreviewModal
+        imagen={imagenAmpliada}
+        onClose={() => setImagenAmpliada(null)}
+      />
+
       {/* Modal de Confirmación antes de cerrar */}
       <ConfirmCloseModal
         ticket={ticketACerrar}
@@ -1566,59 +1731,112 @@ export default function MisSolicitudesPage() {
                   )}
                 </div>
 
-                <ol className="relative space-y-6 border-l border-slate-200 pl-6">
-                  {seleccionado.mensajes.map((m) => (
-                    <li key={m.id} className="relative">
-                      <span className="absolute -left-[29px] top-1 h-2.5 w-2.5 rounded-full bg-[#313652] ring-4 ring-white" />
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-bold text-slate-800">
-                            {m.autor}
-                          </span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              m.esMio
-                                ? "bg-slate-100 text-slate-600"
-                                : "bg-[#313652] text-white"
-                            }`}
-                          >
-                            {m.rol}
+                <div
+                  ref={listaMensajesRef}
+                  className="max-h-[420px] overflow-y-auto pl-2 pr-2"
+                >
+                  <ol className="relative space-y-6 border-l border-slate-200 pl-6">
+                    {seleccionado.mensajes.map((m) => (
+                      <li key={m.id} className="relative">
+                        <span className="absolute -left-[29px] top-1 h-2.5 w-2.5 rounded-full bg-[#313652] ring-4 ring-white" />
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-bold text-slate-800">
+                              {m.autor}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                m.esMio
+                                  ? "bg-slate-100 text-slate-600"
+                                  : "bg-[#313652] text-white"
+                              }`}
+                            >
+                              {m.rol}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-500">
+                            {m.hace}
+                            {m.hora ? ` (${m.hora})` : ""}
                           </span>
                         </div>
-                        <span className="text-[11px] text-slate-500">
-                          {m.hace}
-                          {m.hora ? ` (${m.hora})` : ""}
-                        </span>
-                      </div>
-                      <div className="space-y-3 rounded-xl bg-indigo-50/70 p-4 text-xs leading-relaxed text-slate-700 whitespace-pre-line">
-                        {m.parrafos.map((p, i) => (
-                          <p
-                            key={i}
-                            className={p.b ? "font-bold text-slate-900" : ""}
-                          >
-                            <Texto t={p.t} />
-                          </p>
-                        ))}
-                        {m.adjunto && (
-                          <div className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                            <FileImage className="h-4 w-4 text-slate-500" />
-                            <div className="leading-tight">
-                              <p className="text-[11px] font-semibold text-slate-800">
-                                {m.adjunto.nombre}
-                              </p>
-                              <p className="text-[10px] text-slate-500">
-                                {m.adjunto.detalle}
-                              </p>
-                            </div>
-                            <Download className="h-3.5 w-3.5 text-slate-400" />
-                          </div>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
+                        <div className="space-y-3 rounded-xl bg-indigo-50/70 p-4 text-xs leading-relaxed text-slate-700 whitespace-pre-line">
+                          {m.parrafos.map((p, i) => (
+                            <p
+                              key={i}
+                              className={p.b ? "font-bold text-slate-900" : ""}
+                            >
+                              <Texto t={p.t} />
+                            </p>
+                          ))}
 
-                {/* Responder y aviso de asignación (Oculto si es borrador o si ya está resuelto) */}
+                          {m.adjunto && (
+                            <div className="space-y-2">
+                              {m.adjunto.url &&
+                                (m.adjunto.esImagen ||
+                                  /\.(png|jpe?g|gif|webp)$/i.test(
+                                    m.adjunto.nombre,
+                                  )) && (
+                                  <div className="group relative max-w-xs overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={m.adjunto.url}
+                                      alt={m.adjunto.nombre}
+                                      onClick={() =>
+                                        setImagenAmpliada({
+                                          url: m.adjunto!.url!,
+                                          nombre: m.adjunto!.nombre,
+                                        })
+                                      }
+                                      className="max-h-52 w-full cursor-zoom-in object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setImagenAmpliada({
+                                          url: m.adjunto!.url!,
+                                          nombre: m.adjunto!.nombre,
+                                        })
+                                      }
+                                      className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg bg-slate-900/75 px-2 py-1 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                    >
+                                      <Maximize2 className="h-3 w-3" />
+                                      Ampliar
+                                    </button>
+                                  </div>
+                                )}
+
+                              <div className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                <FileImage className="h-4 w-4 text-slate-500" />
+                                <div className="leading-tight">
+                                  <p className="text-[11px] font-semibold text-slate-800">
+                                    {m.adjunto.nombre}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500">
+                                    {m.adjunto.detalle}
+                                  </p>
+                                </div>
+                                {m.adjunto.url && (
+                                  <a
+                                    href={m.adjunto.url}
+                                    download={m.adjunto.nombre}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="Descargar adjunto"
+                                    className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                {/* Responder y aviso de asignación */}
                 {!seleccionado.esBorrador && seleccionado.estado !== "resuelto" && (
                   <div className="mt-8 border-t border-slate-100 pt-5">
                     {!seleccionado.tieneTecnicoAsignado ? (
@@ -1643,22 +1861,74 @@ export default function MisSolicitudesPage() {
                             Responder al técnico ({seleccionado.tecnico.nombre})
                           </p>
                           <span className="text-[11px] text-indigo-600">
-                            Puedes adjuntar capturas de pantalla
+                            Adjunta o pega (Ctrl+V) capturas de pantalla
                           </span>
                         </div>
+
                         <textarea
                           ref={respuestaRef}
                           rows={4}
                           value={respuesta}
                           disabled={enviandoComentario}
                           onChange={(e) => setRespuesta(e.target.value)}
-                          placeholder="Escribe tu respuesta o aclaración para el técnico..."
+                          onPaste={handlePasteImagen}
+                          placeholder="Escribe tu respuesta o pega una captura de pantalla con Ctrl+V..."
                           className="w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-3 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#313652] disabled:bg-slate-50 disabled:opacity-70"
                         />
+
+                        {/* Vista previa del archivo/captura antes de enviar */}
+                        {archivoAdjunto && (
+                          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50/60 p-2.5">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              {previewAdjunto ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={previewAdjunto}
+                                  alt="Vista previa de captura"
+                                  className="h-12 w-16 shrink-0 rounded-lg border border-slate-200 object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500">
+                                  <FileImage className="h-5 w-5" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-semibold text-slate-800">
+                                  {archivoAdjunto.name}
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  {(archivoAdjunto.size / 1024).toFixed(1)} KB •
+                                  Listo para enviar
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => seleccionarArchivo(null)}
+                              disabled={enviandoComentario}
+                              aria-label="Quitar captura adjunta"
+                              className="rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-red-600"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*,.pdf,.txt,.log"
+                          onChange={(e) =>
+                            seleccionarArchivo(e.target.files?.[0] || null)
+                          }
+                          className="hidden"
+                        />
+
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                           <button
                             type="button"
                             disabled={enviandoComentario}
+                            onClick={() => fileInputRef.current?.click()}
                             className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
                           >
                             <Paperclip className="h-4 w-4" />
@@ -1689,7 +1959,7 @@ export default function MisSolicitudesPage() {
                 )}
               </section>
 
-              {/* Opción para cerrar ticket (Oculta si es borrador) */}
+              {/* Opción para cerrar ticket */}
               {!seleccionado.esBorrador && seleccionado.estado !== "resuelto" && (
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex items-start gap-3">

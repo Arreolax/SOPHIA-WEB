@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -21,6 +21,7 @@ import {
   Home,
   Laptop,
   Mail,
+  Maximize2,
   MessageSquare,
   Network,
   Paperclip,
@@ -30,6 +31,7 @@ import {
   Sparkles,
   Tag,
   UserCheck,
+  X,
 } from "lucide-react";
 
 /* ---------- Tipos alineados con la BD ---------- */
@@ -44,11 +46,19 @@ interface AdjuntoTicket {
   url?: string;
 }
 
+interface AdjuntoMensaje {
+  url?: string;
+  nombre: string;
+  detalle: string;
+  esImagen?: boolean;
+}
+
 interface HistorialItem {
   id: string;
   hora: string;
   autor: string;
   accion: string;
+  adjunto?: AdjuntoMensaje;
 }
 
 interface TicketDetalle {
@@ -78,6 +88,24 @@ interface TicketDetalle {
     role?: string;
   } | null;
   attachments?: AdjuntoTicket[];
+}
+
+/* ---------- Helper para extraer capturas/adjuntos del comentario ---------- */
+function extraerAdjuntoDeContenido(rawContent?: string): {
+  texto: string;
+  adjunto?: AdjuntoMensaje;
+} {
+  if (!rawContent) return { texto: "" };
+  const match = rawContent.match(/\[ADJUNTO:(\{[\s\S]*?\})\]$/);
+  if (!match) return { texto: rawContent };
+
+  try {
+    const parsed = JSON.parse(match[1]) as AdjuntoMensaje;
+    const textoLimpio = rawContent.replace(match[0], "").trim();
+    return { texto: textoLimpio, adjunto: parsed };
+  } catch {
+    return { texto: rawContent };
+  }
 }
 
 /* ---------- Mapas de estilo y etiquetas ---------- */
@@ -139,6 +167,65 @@ function IconoModalidad({ modality }: { modality: string }) {
     return <Plane className="h-4 w-4 text-[#313652]" />;
   }
   return <Building2 className="h-4 w-4 text-[#313652]" />;
+}
+
+/* ---------- Modal para Ampliar Captura de Pantalla ---------- */
+function ImagePreviewModal({
+  imagen,
+  onClose,
+}: {
+  imagen: { url: string; nombre: string } | null;
+  onClose: () => void;
+}) {
+  if (!imagen) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-xs"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative max-h-[90vh] max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <span className="truncate text-xs font-semibold text-slate-700">
+            {imagen.nombre}
+          </span>
+          <div className="flex items-center gap-2">
+            <a
+              href={imagen.url}
+              download={imagen.nombre}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Descargar
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar vista previa"
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="flex max-h-[80vh] items-center justify-center bg-slate-900 p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imagen.url}
+            alt={imagen.nombre}
+            className="max-h-[75vh] w-auto rounded-lg object-contain"
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ---------- Componentes UI ---------- */
@@ -242,6 +329,12 @@ function DetalleTicketTecnicoContent() {
     estado: EstadoTicket;
   } | null>(null);
   const [notaTecnica, setNotaTecnica] = useState("");
+  const [archivoAdjunto, setArchivoAdjunto] = useState<File | null>(null);
+  const [previewAdjunto, setPreviewAdjunto] = useState<string | null>(null);
+  const [imagenAmpliada, setImagenAmpliada] = useState<{
+    url: string;
+    nombre: string;
+  } | null>(null);
   const [guardandoNota, setGuardandoNota] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; msg: string; type: "success" | "error" }>({
     show: false,
@@ -251,10 +344,68 @@ function DetalleTicketTecnicoContent() {
 
   const [historial, setHistorial] = useState<HistorialItem[]>([]);
 
+  const listaHistorialRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const mostrarToast = useCallback((msg: string, type: "success" | "error" = "success") => {
     setToast({ show: true, msg, type });
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 3200);
   }, []);
+
+  /* Seleccionar o pegar captura de pantalla */
+  const seleccionarArchivo = (file: File | null) => {
+    if (previewAdjunto) {
+      URL.revokeObjectURL(previewAdjunto);
+    }
+
+    if (!file) {
+      setArchivoAdjunto(null);
+      setPreviewAdjunto(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      mostrarToast("La captura o archivo no debe superar los 5 MB", "error");
+      return;
+    }
+
+    setArchivoAdjunto(file);
+    if (file.type.startsWith("image/")) {
+      setPreviewAdjunto(URL.createObjectURL(file));
+    } else {
+      setPreviewAdjunto(null);
+    }
+  };
+
+  const handlePasteImagen = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const blob = item.getAsFile();
+        if (blob) {
+          e.preventDefault();
+          const ext = blob.type.split("/")[1] || "png";
+          const captura = new File([blob], `captura-soporte-${Date.now()}.${ext}`, {
+            type: blob.type,
+          });
+          seleccionarArchivo(captura);
+          mostrarToast("Captura de pantalla pegada lista para enviar");
+        }
+        break;
+      }
+    }
+  };
+
+  /* Subir scroll al inicio cuando se agregue un nuevo registro a la bitácora */
+  useEffect(() => {
+    const contenedor = listaHistorialRef.current;
+    if (contenedor) {
+      contenedor.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [historial.length]);
 
   /* Cargar los datos del ticket seleccionado y escuchar nuevos comentarios en tiempo real */
   useEffect(() => {
@@ -313,12 +464,12 @@ function DetalleTicketTecnicoContent() {
           category: t.category || null,
           requester: solicitante
             ? {
-              name: solicitante.name || solicitante.username || solicitante.email || "Usuario",
-              department: solicitante.department || null,
-              area: solicitante.area || null,
-              email: solicitante.email || "No disponible",
-              avatar: "/images/avatar.jpg",
-            }
+                name: solicitante.name || solicitante.username || solicitante.email || "Usuario",
+                department: solicitante.department || null,
+                area: solicitante.area || null,
+                email: solicitante.email || "No disponible",
+                avatar: "/images/avatar.jpg",
+              }
             : undefined,
           assigned_technician: tecnico
             ? { name: tecnico.name || tecnico.username || "Técnico", role: tecnico.role }
@@ -341,10 +492,10 @@ function DetalleTicketTecnicoContent() {
 
         const comentariosOrdenados = Array.isArray(t.comments)
           ? [...t.comments].sort((a, b) => {
-            const fechaA = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const fechaB = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return fechaB - fechaA;
-          })
+              const fechaA = a.created_at ? new Date(a.created_at).getTime() : 0;
+              const fechaB = b.created_at ? new Date(b.created_at).getTime() : 0;
+              return fechaB - fechaA;
+            })
           : [];
 
         const comentariosApi: HistorialItem[] = comentariosOrdenados.map(
@@ -353,12 +504,16 @@ function DetalleTicketTecnicoContent() {
             content: string;
             created_at?: string;
             user?: { name?: string; username?: string; role?: string } | null;
-          }) => ({
-            id: c.id,
-            hora: c.created_at ? new Date(c.created_at).toLocaleString("es-MX") : "Registrado",
-            autor: c.user?.name || c.user?.username || "Soporte",
-            accion: c.content,
-          }),
+          }) => {
+            const { texto, adjunto } = extraerAdjuntoDeContenido(c.content);
+            return {
+              id: c.id,
+              hora: c.created_at ? new Date(c.created_at).toLocaleString("es-MX") : "Registrado",
+              autor: c.user?.name || c.user?.username || "Soporte",
+              accion: texto,
+              adjunto,
+            };
+          },
         );
 
         if (t.diagnosis) {
@@ -374,13 +529,13 @@ function DetalleTicketTecnicoContent() {
           comentariosApi.length > 0
             ? comentariosApi
             : [
-              {
-                id: "h-init",
-                hora: normalizado.created_at,
-                autor: solicitante?.name || "Solicitante",
-                accion: "Ticket registrado en el sistema.",
-              },
-            ];
+                {
+                  id: "h-init",
+                  hora: normalizado.created_at,
+                  autor: solicitante?.name || "Solicitante",
+                  accion: "Ticket registrado en el sistema.",
+                },
+              ];
 
         setHistorial((prev) => {
           if (silencioso && prev.length > 0 && historialFinal.length > prev.length) {
@@ -506,8 +661,8 @@ function DetalleTicketTecnicoContent() {
   };
 
   const handleRegistrarAvance = async () => {
-    if (!notaTecnica.trim()) {
-      mostrarToast("Escribe una nota o diagnóstico antes de registrar", "error");
+    if (!notaTecnica.trim() && !archivoAdjunto) {
+      mostrarToast("Escribe una nota o adjunta una captura antes de registrar", "error");
       return;
     }
 
@@ -515,15 +670,19 @@ function DetalleTicketTecnicoContent() {
     const texto = notaTecnica.trim();
 
     try {
-      // Intentar guardar en /api/tickets/[id]/comments y fallback a PATCH diagnosis
+      const formData = new FormData();
+      formData.append("content", texto);
+      if (archivoAdjunto) {
+        formData.append("file", archivoAdjunto);
+      }
+
       let res = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}/comments`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: texto }),
+        body: formData,
       });
 
-      if (!res.ok) {
+      if (!res.ok && !archivoAdjunto) {
         res = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}`, {
           method: "PATCH",
           credentials: "include",
@@ -532,20 +691,28 @@ function DetalleTicketTecnicoContent() {
         });
       }
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        throw new Error("Error al registrar el avance");
+        throw new Error(data.error || "Error al registrar el avance");
       }
+
+      const extraido = data.comment?.content
+        ? extraerAdjuntoDeContenido(data.comment.content)
+        : { texto, adjunto: data.attachment };
 
       setHistorial((prev) => [
         {
-          id: `h-${Date.now()}`,
+          id: data.comment?.id || `h-${Date.now()}`,
           hora: "Ahora",
           autor: `${ticket?.assigned_technician?.name || "Técnico"} (Técnico)`,
-          accion: texto,
+          accion: extraido.texto,
+          adjunto: extraido.adjunto || data.attachment || undefined,
         },
         ...prev,
       ]);
       setNotaTecnica("");
+      seleccionarArchivo(null);
       mostrarToast("Nota técnica registrada en el historial");
     } catch {
       mostrarToast("No se pudo guardar la nota técnica", "error");
@@ -590,10 +757,17 @@ function DetalleTicketTecnicoContent() {
 
   return (
     <div className="mx-auto w-full max-w-6xl">
+      {/* Modal para ampliar imagen */}
+      <ImagePreviewModal
+        imagen={imagenAmpliada}
+        onClose={() => setImagenAmpliada(null)}
+      />
+
       {/* Toast */}
       <div
-        className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg px-6 py-3 text-white shadow-xl transition-all duration-500 ${toast.show ? "translate-y-0 opacity-100" : "-translate-y-24 opacity-0 pointer-events-none"
-          } ${toast.type === "success" ? "bg-emerald-500" : "bg-red-500"}`}
+        className={`fixed left-1/2 top-6 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg px-6 py-3 text-white shadow-xl transition-all duration-500 ${
+          toast.show ? "translate-y-0 opacity-100" : "-translate-y-24 opacity-0 pointer-events-none"
+        } ${toast.type === "success" ? "bg-emerald-500" : "bg-red-500"}`}
       >
         {toast.type === "success" ? (
           <CheckCircle2 className="h-5 w-5" />
@@ -740,8 +914,9 @@ function DetalleTicketTecnicoContent() {
                   Tiempo SLA restante
                 </p>
                 <p
-                  className={`mt-1 text-sm font-bold ${ticket.priority === "CRITICAL" ? "text-red-600" : "text-slate-800"
-                    }`}
+                  className={`mt-1 text-sm font-bold ${
+                    ticket.priority === "CRITICAL" ? "text-red-600" : "text-slate-800"
+                  }`}
                 >
                   {ticket.sla_remaining}
                 </p>
@@ -866,18 +1041,37 @@ function DetalleTicketTecnicoContent() {
               subtitulo="Registra avances, pruebas realizadas o respuestas para el solicitante"
             />
 
-            <div className="mb-5 flex flex-col gap-2.5 sm:flex-row">
+            <div className="mb-4 flex flex-col gap-2.5 sm:flex-row">
               <div className="relative flex-1">
                 <MessageSquare className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
                   value={notaTecnica}
                   onChange={(e) => setNotaTecnica(e.target.value)}
+                  onPaste={handlePasteImagen}
                   onKeyDown={(e) => e.key === "Enter" && void handleRegistrarAvance()}
-                  placeholder="Escribe un diagnóstico técnico o nota de seguimiento..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#313652] focus:bg-white"
+                  placeholder="Escribe un diagnóstico, respuesta o pega una captura (Ctrl+V)..."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-10 text-xs text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#313652] focus:bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={guardandoNota}
+                  title="Adjuntar captura o archivo"
+                  aria-label="Adjuntar captura o archivo"
+                  className="absolute right-2.5 top-2 rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-700 disabled:opacity-50"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,.pdf,.txt,.log"
+                  onChange={(e) => seleccionarArchivo(e.target.files?.[0] || null)}
+                  className="hidden"
                 />
               </div>
+
               <button
                 type="button"
                 disabled={guardandoNota}
@@ -889,16 +1083,122 @@ function DetalleTicketTecnicoContent() {
               </button>
             </div>
 
-            <div className="space-y-3">
+            {/* Vista previa de captura seleccionada antes de enviar */}
+            {archivoAdjunto && (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50/60 p-2.5">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  {previewAdjunto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previewAdjunto}
+                      alt="Vista previa de captura"
+                      className="h-11 w-14 shrink-0 rounded-lg border border-slate-200 object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500">
+                      <FileImage className="h-5 w-5" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-slate-800">
+                      {archivoAdjunto.name}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {(archivoAdjunto.size / 1024).toFixed(1)} KB • Listo para adjuntar
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => seleccionarArchivo(null)}
+                  disabled={guardandoNota}
+                  aria-label="Quitar captura"
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-red-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
+            <div
+              ref={listaHistorialRef}
+              className="max-h-80 space-y-3 overflow-y-auto pr-1"
+            >
               {historial.map((item) => (
                 <div
                   key={item.id}
                   className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-xs"
                 >
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#313652]" />
-                  <div>
-                    <p className="font-medium text-slate-800">{item.accion}</p>
-                    <p className="mt-0.5 text-[10px] text-slate-500">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    {item.accion && (
+                      <p className="whitespace-pre-line font-medium text-slate-800">
+                        {item.accion}
+                      </p>
+                    )}
+
+                    {/* Captura de pantalla / adjunto enviado en el chat */}
+                    {item.adjunto && (
+                      <div className="space-y-2 pt-0.5">
+                        {item.adjunto.url &&
+                          (item.adjunto.esImagen ||
+                            /\.(png|jpe?g|gif|webp)$/i.test(item.adjunto.nombre)) && (
+                            <div className="group relative max-w-xs overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={item.adjunto.url}
+                                alt={item.adjunto.nombre}
+                                onClick={() =>
+                                  setImagenAmpliada({
+                                    url: item.adjunto!.url!,
+                                    nombre: item.adjunto!.nombre,
+                                  })
+                                }
+                                className="max-h-48 w-full cursor-zoom-in object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setImagenAmpliada({
+                                    url: item.adjunto!.url!,
+                                    nombre: item.adjunto!.nombre,
+                                  })
+                                }
+                                className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg bg-slate-900/75 px-2 py-1 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
+                              >
+                                <Maximize2 className="h-3 w-3" />
+                                Ampliar
+                              </button>
+                            </div>
+                          )}
+
+                        <div className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5">
+                          <FileImage className="h-3.5 w-3.5 text-slate-500" />
+                          <div className="leading-tight">
+                            <p className="text-[11px] font-semibold text-slate-800">
+                              {item.adjunto.nombre}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              {item.adjunto.detalle}
+                            </p>
+                          </div>
+                          {item.adjunto.url && (
+                            <a
+                              href={item.adjunto.url}
+                              download={item.adjunto.nombre}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="Descargar adjunto"
+                              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="text-[10px] text-slate-500">
                       {item.autor} • {item.hora}
                     </p>
                   </div>

@@ -16,6 +16,12 @@ function normalizeRole(val: unknown): UserRole {
   return "usuario";
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 async function getAuthContext() {
   const cookieStore = await cookies();
   let token = cookieStore.get("sb-access-token")?.value;
@@ -102,7 +108,7 @@ async function getAuthContext() {
   };
 }
 
-// POST /api/tickets/[id]/comments -> Agregar comentario al ticket
+// POST /api/tickets/[id]/comments -> Agregar comentario y/o captura al ticket
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -115,12 +121,31 @@ export async function POST(
 
     const { id: ticketId } = await params;
     const { supabase, user, role } = auth;
-    const body = await request.json();
-    const { content, status: nextStatus } = body;
 
-    if (!content || typeof content !== "string" || !content.trim()) {
+    // Soportar tanto FormData (con imagen/archivo) como JSON tradicional
+    const contentType = request.headers.get("content-type") || "";
+    let content = "";
+    let nextStatus: string | undefined;
+    let file: File | null = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      content = String(formData.get("content") || "");
+      const rawStatus = formData.get("status");
+      if (rawStatus) nextStatus = String(rawStatus);
+      const rawFile = formData.get("file");
+      if (rawFile instanceof File && rawFile.size > 0) {
+        file = rawFile;
+      }
+    } else {
+      const body = await request.json();
+      content = typeof body.content === "string" ? body.content : "";
+      nextStatus = body.status;
+    }
+
+    if (!content.trim() && !file) {
       return NextResponse.json(
-        { error: "El contenido del comentario es obligatorio" },
+        { error: "Debes escribir un mensaje o adjuntar una captura de pantalla" },
         { status: 400 }
       );
     }
@@ -139,7 +164,6 @@ export async function POST(
       );
     }
 
-    // Un usuario normal solo puede comentar en tickets creados por él
     if (role === "usuario" && ticket.created_by !== user.id) {
       return NextResponse.json(
         { error: "No tienes permiso para comentar en este ticket" },
@@ -147,13 +171,73 @@ export async function POST(
       );
     }
 
-    // 2. Insertar el comentario en public.comment
+    // 2. Subir captura/archivo a Supabase Storage si viene adjunto
+    let attachmentMeta: {
+      url: string;
+      nombre: string;
+      detalle: string;
+      esImagen: boolean;
+    } | null = null;
+
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: "El archivo supera el límite máximo de 5 MB" },
+          { status: 400 }
+        );
+      }
+
+      const ext = file.name.split(".").pop() || "png";
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storagePath = `${ticketId}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}.${ext}`;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = new Uint8Array(arrayBuffer);
+
+      const { error: uploadError } = await supabase.storage
+        .from("ticket-attachments")
+        .upload(storagePath, buffer, {
+          contentType: file.type || "image/png",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        return NextResponse.json(
+          {
+            error: "No se pudo subir la captura de pantalla",
+            detalle: uploadError.message,
+          },
+          { status: 400 }
+        );
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("ticket-attachments")
+        .getPublicUrl(storagePath);
+
+      attachmentMeta = {
+        url: publicUrlData.publicUrl,
+        nombre: safeName,
+        detalle: `${formatBytes(file.size)} • ${file.type.split("/")[1]?.toUpperCase() || "ARCHIVO"}`,
+        esImagen: file.type.startsWith("image/"),
+      };
+    }
+
+    // Guardar en content incluyendo marcador estructurado para que GET /api/tickets/[id] lo recupere automáticamente
+    const textoLimpio = content.trim();
+    const contenidoFinal = attachmentMeta
+      ? `${textoLimpio}${textoLimpio ? "\n" : ""}[ADJUNTO:${JSON.stringify(attachmentMeta)}]`
+      : textoLimpio;
+
+    // 3. Insertar el comentario en public.comment
     const { data: newComment, error: insertError } = await supabase
       .from("comment")
       .insert({
         ticket_id: ticketId,
         user_id: user.id,
-        content: content.trim(),
+        content: contenidoFinal,
       })
       .select(`
         id,
@@ -171,7 +255,7 @@ export async function POST(
       );
     }
 
-    // 3. Actualizar updated_at del ticket (y el estado si corresponde)
+    // 4. Actualizar updated_at del ticket (y el estado si corresponde)
     let updatedStatus = ticket.status;
 
     if (
@@ -195,7 +279,6 @@ export async function POST(
       })
       .eq("id", ticketId);
 
-    // Si cambió el estado, registrarlo en status_history
     if (updatedStatus !== ticket.status) {
       await supabase.from("status_history").insert({
         ticket_id: ticketId,
@@ -209,6 +292,7 @@ export async function POST(
       {
         mensaje: "Comentario agregado correctamente",
         comment: newComment,
+        attachment: attachmentMeta,
         status: updatedStatus,
       },
       { status: 201 }
