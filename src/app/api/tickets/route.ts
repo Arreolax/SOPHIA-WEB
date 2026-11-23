@@ -182,7 +182,6 @@ export async function POST(request: Request) {
     const {
       title,
       description,
-      modalidad,
       modality,
       type,
       subcategory,
@@ -223,14 +222,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const modalidadFinal = (modalidad || modality || "Sede Central / Oficina").trim();
 
     const { data: newTicket, error } = await supabase
       .from("ticket")
       .insert({
         title: title?.trim() || "Borrador sin título",
         description: description?.trim() || "",
-        modalidad: modalidadFinal,
+        modality: modality,
         type: type ? type.trim() : "INCIDENTE",
         subcategory: subcategory ? subcategory.trim() : null,
         impact: String(impact).toUpperCase(),

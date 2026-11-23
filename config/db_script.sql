@@ -24,7 +24,7 @@ create table public.ticket (
   title character varying(150) not null,
   description text not null,
   type character varying(50) not null,
-  modalidad text null,
+  modality text null,
   subcategory character varying(100) null,
   impact character varying(20) not null default 'LOW'::character varying,
   urgency character varying(20) not null default 'LOW'::character varying,

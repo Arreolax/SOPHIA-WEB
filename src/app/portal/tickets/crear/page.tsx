@@ -782,9 +782,10 @@ function CrearSolicitudContent() {
 
       if (!response.ok) {
         throw new Error(
-          result.error ||
-            result.detalle ||
-            (esBorrador ? "No se pudo guardar el borrador" : "No se pudo crear el ticket")
+          result.detalle
+            ? `${result.error}: ${result.detalle}`
+            : result.error ||
+                (esBorrador ? "No se pudo guardar el borrador" : "No se pudo crear el ticket")
         );
       }
 
