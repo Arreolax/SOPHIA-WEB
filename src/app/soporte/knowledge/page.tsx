@@ -32,9 +32,11 @@ import {
   FileText,
   Terminal,
   Circle,
+  BookOpen,
+  Plus,
 } from "lucide-react";
 
-/* ---------- Datos de ejemplo (luego los reemplazas por Supabase / tu API) ---------- */
+/* ---------- Datos del ticket activo ---------- */
 const TICKET = {
   id: "INC-8921",
   prioridad: "P1 • CRÍTICA",
@@ -50,6 +52,18 @@ const TICKET = {
 const ESTADOS = ["Abierto", "En Diagnóstico", "En Remediación", "Esperando Usuario", "Resuelto"];
 
 type LineaLog = { hora: string; nivel: string; texto: string; tipo: "normal" | "error" | "fatal" };
+
+type KnowledgeArticle = {
+  id: string;
+  ticket_ref: string;
+  title: string;
+  category: string;
+  symptom_pattern: string;
+  solution_script: string;
+  resolution_time: string;
+  match_score: number;
+  created_at?: string;
+};
 
 const LOG_INICIAL: LineaLog[] = [
   { hora: "09:12:03.102", nivel: "INFO", texto: "Contacting headend gateway https://vpn-gw01.empresa.net/CORP-REMOTE", tipo: "normal" },
@@ -75,11 +89,6 @@ const PASOS = [
   { titulo: "Revalidación Duo Push & Retorno a Nodo Primario", detalle: "Solicitar al usuario confirmar notificación push en smartphone corporativo registrado." },
 ];
 
-const PATRONES = [
-  { id: "INC-7042", coincidencia: "98% coincidencia", fuerte: true, tiempo: "Resuelto en 12 min", titulo: "Error 403 AnyConnect macOS Sonoma tras update de seguridad", solucion: "Solución: Script Keychain + Jamf Sync", accion: "Copiar Solución" },
-  { id: "INC-6831", coincidencia: "82% coincidencia", fuerte: false, tiempo: "Resuelto en 50 min", titulo: "Re-enrolamiento Jamf por certificado CA intermedia revocado", solucion: "Solución: Parcheo de SCEP Profile", accion: "Ver Registro" },
-];
-
 const CAMBIOS = [
   "09:14 • Ticket creado por Elena Morales (P1)",
   "09:20 • Asignado a Carlos Mendoza (L2 Redes)",
@@ -95,7 +104,6 @@ const formatoHMS = (s: number) => {
 
 type Pestana = "script" | "nota" | "respuesta";
 
-/* ---------- Página ---------- */
 export default function TicketTecnicoPage() {
   const [estado, setEstado] = useState("En Diagnóstico");
   const [copilotActivo, setCopilotActivo] = useState(true);
@@ -112,6 +120,24 @@ export default function TicketTecnicoPage() {
   const [confirmar, setConfirmar] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; msg: string }>({ show: false, msg: "" });
 
+  // Estados reales conectados a /api/knowledge
+  const [articulos, setArticulos] = useState<KnowledgeArticle[]>([]);
+  const [cargandoKb, setCargandoKb] = useState(true);
+  const [busqueda, setBusqueda] = useState("");
+  const [articuloSeleccionado, setArticuloSeleccionado] = useState<KnowledgeArticle | null>(null);
+  const [modalCrearKb, setModalCrearKb] = useState(false);
+  const [guardandoKb, setGuardandoKb] = useState(false);
+
+  // Formulario para nuevo artículo en la Base de Conocimientos
+  const [nuevoKb, setNuevoKb] = useState({
+    ticket_ref: TICKET.id,
+    title: "Fallo AnyConnect en macOS Sonoma (403-AUTH-TIMEOUT)",
+    category: TICKET.categoria,
+    symptom_pattern: "CERTIFICATE_VERIFY_FAILED / SCEP profile machine token mismatch",
+    solution_script: SCRIPT_SUGERIDO,
+    resolution_time: "15 min",
+  });
+
   const terminalRef = useRef<HTMLDivElement>(null);
 
   const mostrarToast = (msg: string) => {
@@ -119,7 +145,38 @@ export default function TicketTecnicoPage() {
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 3200);
   };
 
-  /* Cuenta regresiva del SLA (se detiene si el ticket está Resuelto) */
+  // Cargar artículos reales desde Supabase (/api/knowledge)
+  const cargarArticulos = async (filtro = "") => {
+    try {
+      setCargandoKb(true);
+      const url = filtro.trim()
+        ? `/api/knowledge?q=${encodeURIComponent(filtro.trim())}`
+        : "/api/knowledge";
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setArticulos(data.articles || []);
+      }
+    } catch (error) {
+      console.error("Error cargando base de conocimientos:", error);
+    } finally {
+      setCargandoKb(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarArticulos();
+  }, []);
+
+  // Búsqueda con pequeño debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      cargarArticulos(busqueda);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [busqueda]);
+
+  /* Cuenta regresiva del SLA */
   useEffect(() => {
     if (estado === "Resuelto") return;
     const timer = setInterval(() => setSegundos((s) => (s > 0 ? s - 1 : 0)), 1000);
@@ -142,18 +199,63 @@ export default function TicketTecnicoPage() {
     }
   };
 
-  const reanalizar = () => {
+  const reanalizar = async () => {
     setAnalizando(true);
-    setTimeout(() => {
-      setAnalizando(false);
-      mostrarToast("IA reanalizó la telemetría");
-    }, 900);
+    await cargarArticulos(busqueda);
+    setAnalizando(false);
+    mostrarToast("IA sincronizada con la Base de Conocimientos");
   };
 
   const insertarSecuencia = () => {
     setScript(SCRIPT_SUGERIDO);
     setPestana("script");
     mostrarToast("Secuencia insertada en la consola técnica");
+  };
+
+  const abrirModalNuevoKb = () => {
+    setNuevoKb({
+      ticket_ref: TICKET.id,
+      title: "Fallo AnyConnect en macOS Sonoma (403-AUTH-TIMEOUT)",
+      category: TICKET.categoria,
+      symptom_pattern: "CERTIFICATE_VERIFY_FAILED / SCEP profile machine token mismatch",
+      solution_script: script || SCRIPT_SUGERIDO,
+      resolution_time: "15 min",
+    });
+    setModalCrearKb(true);
+  };
+
+  const guardarArticuloKb = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nuevoKb.title.trim() || !nuevoKb.symptom_pattern.trim() || !nuevoKb.solution_script.trim()) {
+      mostrarToast("Completa título, síntoma y solución");
+      return;
+    }
+
+    try {
+      setGuardandoKb(true);
+      const res = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...nuevoKb,
+          match_score: 96,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        mostrarToast(data.error || "Error al guardar en la Base de Conocimientos");
+        return;
+      }
+
+      setModalCrearKb(false);
+      mostrarToast("Artículo publicado en Supabase (Base de Conocimientos)");
+      await cargarArticulos(busqueda);
+    } catch {
+      mostrarToast("Error de red al guardar el artículo");
+    } finally {
+      setGuardandoKb(false);
+    }
   };
 
   const resumenSinTecnicismos = () => {
@@ -177,7 +279,6 @@ export default function TicketTecnicoPage() {
   };
 
   const ejecutarRemoto = () => {
-    // TODO: aquí llamas a tu API real (por ejemplo POST /api/tickets/INC-8921/execute)
     setConfirmar(false);
     const hora = () => new Date().toLocaleTimeString("es-MX", { hour12: false }) + ".000";
     setLog((l) => [
@@ -220,6 +321,105 @@ export default function TicketTecnicoPage() {
         <span className="font-medium">{toast.msg}</span>
       </div>
 
+      {/* Modal: Guardar nuevo artículo en Base de Conocimientos (Supabase) */}
+      {modalCrearKb && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 p-4">
+          <form onSubmit={guardarArticuloKb} className="w-full max-w-lg rounded-2xl bg-white p-6 text-slate-800 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
+                  <Plus className="h-5 w-5" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Nuevo Artículo en Base de Conocimientos</h3>
+                  <p className="text-[11px] text-slate-500">Se guardará directamente en Supabase para futuros incidentes</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalCrearKb(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-800">Referencia Ticket</label>
+                  <input
+                    type="text"
+                    value={nuevoKb.ticket_ref}
+                    onChange={(e) => setNuevoKb({ ...nuevoKb, ticket_ref: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-medium text-slate-900 outline-none focus:border-indigo-600"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-800">Categoría</label>
+                  <input
+                    type="text"
+                    value={nuevoKb.category}
+                    onChange={(e) => setNuevoKb({ ...nuevoKb, category: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-medium text-slate-900 outline-none focus:border-indigo-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-800">Título del Artículo *</label>
+                <input
+                  type="text"
+                  required
+                  value={nuevoKb.title}
+                  onChange={(e) => setNuevoKb({ ...nuevoKb, title: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-medium text-slate-900 outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-800">Síntoma o Patrón de Error *</label>
+                <input
+                  type="text"
+                  required
+                  value={nuevoKb.symptom_pattern}
+                  onChange={(e) => setNuevoKb({ ...nuevoKb, symptom_pattern: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-medium text-slate-900 outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-800">Script / Pasos de Solución *</label>
+                <textarea
+                  rows={5}
+                  required
+                  value={nuevoKb.solution_script}
+                  onChange={(e) => setNuevoKb({ ...nuevoKb, solution_script: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 p-2.5 font-mono text-[11px] font-medium text-slate-900 outline-none focus:border-indigo-600 focus:bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setModalCrearKb(false)}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={guardandoKb}
+                className="flex items-center gap-1.5 rounded-lg bg-[#262a40] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1c2033] disabled:opacity-50"
+              >
+                <Save className="h-3.5 w-3.5" /> {guardandoKb ? "Guardando..." : "Guardar en Base de Conocimientos"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Confirmación de ejecución remota */}
       {confirmar && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
@@ -256,17 +456,23 @@ export default function TicketTecnicoPage() {
         </div>
       )}
 
-      {/* Barra superior */}
+      {/* Barra superior con buscador real de Base de Conocimientos */}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-1 flex-wrap items-center gap-3">
           <div className="flex w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs">
             <Search className="h-3.5 w-3.5 text-slate-500" />
             <input
               type="text"
-              placeholder="Buscar tickets, usuarios, incidentes o IPs..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar soluciones en Base de Conocimientos (ej. VPN, Jamf, 403)..."
               className="w-full bg-transparent outline-none placeholder:text-slate-400"
             />
-            <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">⌘K</kbd>
+            {busqueda && (
+              <button type="button" onClick={() => setBusqueda("")} className="text-slate-400 hover:text-slate-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           <div className="relative w-36">
             <select
@@ -581,7 +787,7 @@ export default function TicketTecnicoPage() {
           </section>
         </div>
 
-        {/* ============ IT Copilot ============ */}
+        {/* ============ IT Copilot & Base de Conocimientos (Conectado a Supabase) ============ */}
         <aside className="relative">
           <section
             className={`rounded-2xl border border-slate-200 bg-gradient-to-br from-indigo-50/60 to-white p-5 shadow-sm transition-opacity ${
@@ -599,8 +805,8 @@ export default function TicketTecnicoPage() {
                     <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-700">v3.2 ITIL-trained</span>
                   </p>
                   <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                    {analizando ? "Reanalizando..." : "Analizando telemetría y logs en tiempo real"}
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    {analizando ? "Sincronizando..." : "Conectado a Base de Conocimientos"}
                   </p>
                 </div>
               </div>
@@ -631,43 +837,60 @@ export default function TicketTecnicoPage() {
               </p>
             </div>
 
+            {/* Base de Conocimientos Real desde Supabase */}
             <div className="mt-4">
               <div className="mb-2 flex items-center justify-between text-[9px] font-bold uppercase tracking-wide text-slate-500">
-                <span className="flex items-center gap-1"><History className="h-3 w-3" /> Patrones en tickets históricos</span>
-                <span className="normal-case font-medium text-slate-400">Cluster Red L2</span>
+                <span className="flex items-center gap-1"><History className="h-3 w-3" /> Base de Conocimientos ({articulos.length})</span>
+                <span className="normal-case font-medium text-emerald-600">Supabase Live</span>
               </div>
-              <div className="space-y-2">
-                {PATRONES.map((p) => (
-                  <div key={p.id} className="rounded-xl bg-indigo-50/60 p-3">
-                    <div className="flex items-center justify-between gap-2 text-[10px]">
-                      <span className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-slate-700">{p.id}</span>
-                        <span className={`rounded-full px-2 py-0.5 font-semibold ${p.fuerte ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-600"}`}>
-                          {p.coincidencia}
+
+              {cargandoKb ? (
+                <p className="rounded-xl bg-indigo-50/40 p-3 text-center text-[11px] text-slate-500">
+                  Cargando artículos desde Supabase...
+                </p>
+              ) : articulos.length === 0 ? (
+                <p className="rounded-xl bg-indigo-50/40 p-3 text-center text-[11px] text-slate-500">
+                  No se encontraron artículos con &quot;{busqueda}&quot;.
+                </p>
+              ) : (
+                <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {articulos.map((p) => (
+                    <div key={p.id} className="rounded-xl bg-indigo-50/60 p-3">
+                      <div className="flex items-center justify-between gap-2 text-[10px]">
+                        <span className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-slate-700">{p.ticket_ref}</span>
+                          <span className={`rounded-full px-2 py-0.5 font-semibold ${p.match_score >= 90 ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-600"}`}>
+                            {p.match_score}% coincidencia
+                          </span>
                         </span>
-                      </span>
-                      <span className="text-slate-400">{p.tiempo}</span>
+                        <span className="text-slate-400">Resuelto en {p.resolution_time}</span>
+                      </div>
+                      <p className="mt-1.5 text-[11px] font-bold leading-snug text-slate-800">{p.title}</p>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1 truncate text-[10px] text-slate-500">
+                          <Clock className="h-3 w-3 shrink-0" /> {p.category}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => copiar(p.solution_script, `Solución de ${p.ticket_ref} copiada`)}
+                            className="rounded-md bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                          >
+                            Copiar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setArticuloSeleccionado(p)}
+                            className="rounded-md bg-[#262a40] px-2 py-1 text-[10px] font-semibold text-white shadow-sm hover:bg-[#1c2033]"
+                          >
+                            Ver Registro
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <p className="mt-1.5 text-[11px] font-bold leading-snug text-slate-800">{p.titulo}</p>
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1 text-[10px] text-slate-500">
-                        <Clock className="h-3 w-3" /> {p.solucion}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          p.accion === "Copiar Solución"
-                            ? copiar(SCRIPT_SUGERIDO, "Solución copiada al portapapeles")
-                            : mostrarToast(`Registro de ${p.id} (pendiente de conectar)`)
-                        }
-                        className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-                      >
-                        {p.accion}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="mt-4">
@@ -744,14 +967,14 @@ export default function TicketTecnicoPage() {
               </button>
               <button
                 type="button"
-                onClick={() => mostrarToast("Borrador de KB generado (simulado)")}
-                className="rounded-xl bg-slate-100 p-3 text-left hover:bg-slate-200"
+                onClick={abrirModalNuevoKb}
+                className="rounded-xl bg-indigo-100/80 p-3 text-left hover:bg-indigo-200/80"
               >
-                <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-800">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-900">
                   <FileText className="h-3.5 w-3.5" /> Generar borrador de KB
                 </span>
-                <span className="mt-1 block text-[10px] leading-snug text-slate-500">
-                  Crea artículo en la Wiki: &quot;Fallo AnyConnect en macOS Sonoma&quot;.
+                <span className="mt-1 block text-[10px] leading-snug text-indigo-700">
+                  Guarda esta solución como artículo real en Supabase.
                 </span>
               </button>
             </div>
@@ -766,7 +989,7 @@ export default function TicketTecnicoPage() {
       </div>
 
       <p className="mt-4 flex items-center gap-2 text-[10px] text-slate-400">
-        <Laptop className="h-3 w-3" /> Vista de demostración: logs, acciones remotas y respuestas del IA son simuladas.
+        <Laptop className="h-3 w-3" /> Módulo Base de Conocimientos conectado a Supabase (`/api/knowledge`).
       </p>
     </div>
   );
