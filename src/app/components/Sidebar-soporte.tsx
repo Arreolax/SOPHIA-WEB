@@ -18,6 +18,7 @@ import Image from "next/image";
 
 const navItems = [
   { name: "Dashboard", href: "/soporte/dashboard", icon: LayoutDashboard },
+  { name: "Base de Conocimiento", href: "/soporte/knowledge", icon: Ticket},
   { name: "IDK", href: "/soporte", icon: Ticket },
   { name: "Menu del tecnico", href: "/soporte", icon: ShieldCheck },
 ];

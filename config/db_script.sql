@@ -4,6 +4,7 @@ create table public.users (
   email character varying(150) not null,
   username character varying null,
   role text null default 'usuario',
+  status boolean default TRUE,
   created_at timestamp with time zone null default now(),
   constraint user_pkey primary key (id),
   constraint user_email_key unique (email),
@@ -161,3 +162,38 @@ with check (bucket_id = 'ticket-attachments');
 create policy "Lectura publica de adjuntos"
 on storage.objects for select to public
 using (bucket_id = 'ticket-attachments');
+
+-- 
+create or replace function public.get_users_with_auth()
+returns table (
+  id uuid,
+  name character varying(100),
+  email character varying(150),
+  username character varying,
+  role text,
+  status boolean,
+  created_at timestamp with time zone,
+  last_sign_in_at timestamp with time zone,
+  email_confirmed_at timestamp with time zone
+)
+language sql
+security definer
+set search_path = public, auth
+as $$
+  select
+    u.id,
+    u.name,
+    u.email,
+    u.username,
+    u.role,
+    u.status,
+    u.created_at,
+    au.last_sign_in_at,
+    au.email_confirmed_at
+  from public.users u
+  left join auth.users au on au.id = u.id
+  order by u.created_at desc;
+$$;
+
+revoke all on function public.get_users_with_auth() from public;
+grant execute on function public.get_users_with_auth() to authenticated;

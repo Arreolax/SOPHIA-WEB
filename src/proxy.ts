@@ -35,7 +35,7 @@ function getAreaFromPath(path: string): "portal" | "soporte" | "web" | null {
 }
 
 function getHomeForRole(role: UserRole): string {
-  if (role === "admin") return "/web";
+  if (role === "admin") return "/web/dashboard";
   if (role === "tecnico") return "/soporte/dashboard";
   return "/portal/dashboard";
 }

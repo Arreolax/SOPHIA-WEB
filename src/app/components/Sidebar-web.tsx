@@ -7,55 +7,22 @@ import {
   LayoutDashboard,
   Ticket,
   BookOpen,
-  Settings,
   PieChart,
   LogOut,
   User,
-  CheckCircle2, 
-  AlertCircle, 
-  ShieldCheck,
-  Wrench,
+  CheckCircle2,
+  AlertCircle,
+  UserShield,
 } from "lucide-react";
 import Image from "next/image";
 
-const navItems = [
-  { name: "Dashboard", href: "/portal/dashboard", icon: LayoutDashboard },
-  { name: "Mis Tickets", href: "/soporte/ticketssTec", icon: Ticket },
-  { name: "Base de Conocimiento", href: "/soporte/knowledge", icon: BookOpen },
-  { name: "Reportes", href: "/portal/reports", icon: PieChart },
-  { name: "Menu de los admins", href: "/portal", icon: ShieldCheck}
+const adminNavItems = [
+  { name: "Dashboard", href: "/web/dashboard", icon: LayoutDashboard },
+  { name: "Tickets", href: "/web/tickets", icon: Ticket },
+  { name: "Base de Conocimiento", href: "/web/knowledge", icon: BookOpen },
+  { name: "Reportes", href: "/web/reportes", icon: PieChart },
+  { name: "Usuarios", href: "/web/Usuarios", icon: User},
 ];
-
-const renderRoleIcon = (role: string) => {
-  const norm = role?.toLowerCase() || "";
-  if (norm.includes("admin")) {
-    return <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />;
-  }
-  if (norm.includes("tecnic")) {
-    return <Wrench className="w-3.5 h-3.5 text-blue-600 shrink-0" />;
-  }
-};
-
-const getNavHref = (name: string, href: string, role: string) => {
-  const normalizedRole = role
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-  if (name === "Mis Tickets" && normalizedRole.includes("admin")) {
-    return "/portal/ticketssAdmi";
-  }
-
-  if (
-    name === "Mis Tickets" &&
-    normalizedRole &&
-    !normalizedRole.includes("tecnic")
-  ) {
-    return "/portal/tickets/consultarMT";
-  }
-
-  return href;
-};
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -70,17 +37,16 @@ export default function Sidebar() {
   const [notification, setNotification] = useState({
     show: false,
     message: "",
-    type: "success", 
+    type: "success" as "success" | "error",
   });
 
   const showNotification = (message: string, type: "success" | "error") => {
     setNotification({ show: true, message, type });
-    
     setTimeout(() => {
-      setNotification(prev => ({ ...prev, show: false }));
+      setNotification((prev) => ({ ...prev, show: false }));
     }, 3000);
   };
-  
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -106,7 +72,7 @@ export default function Sidebar() {
   return (
     <>
       <div
-        className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-100 flex items-center gap-2 px-6 py-3 rounded-lg shadow-xl transition-all duration-500 ${
+        className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-2 px-6 py-3 rounded-lg shadow-xl transition-all duration-500 ${
           notification.show
             ? "translate-y-0 opacity-100"
             : "-translate-y-24 opacity-0 pointer-events-none"
@@ -126,13 +92,12 @@ export default function Sidebar() {
 
       <aside className="w-64 h-screen bg-[#313652] text-gray-200 flex flex-col justify-between p-4 shrink-0">
         <nav className="flex flex-col gap-2 mt-4">
-          {navItems.map((item) => {
-            const href = getNavHref(item.name, item.href, userInfo.role);
-            const isActive = pathname === href;
+          {adminNavItems.map((item) => {
+            const isActive = pathname === item.href;
             return (
               <Link
                 key={item.name}
-                href={href}
+                href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
                     ? "bg-white/10 text-white font-medium"
@@ -152,15 +117,6 @@ export default function Sidebar() {
           <div className="relative">
             {isMenuOpen && (
               <div className="absolute left-full bottom-0 ml-2 w-48 bg-[#262a40] border border-gray-600/50 rounded-lg shadow-xl overflow-hidden z-50">
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <Settings className="w-5 h-5" />
-                  <span>Settings</span>
-                </Link>
-
                 <Link
                   href="/soporte/profile"
                   className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors"
@@ -184,8 +140,8 @@ export default function Sidebar() {
                         setIsMenuOpen(false);
 
                         setTimeout(() => {
-                          setNotification(prev => ({ ...prev, show: false })); 
-                          router.push('/login');
+                          setNotification((prev) => ({ ...prev, show: false }));
+                          router.push("/");
                           router.refresh();
                         }, 1500);
                       } else {
@@ -194,7 +150,7 @@ export default function Sidebar() {
                     } catch (error) {
                       showNotification(
                         "Error de conexión con el servidor",
-                        "error",
+                        "error"
                       );
                     }
                   }}
@@ -214,22 +170,24 @@ export default function Sidebar() {
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-400 relative">
                 <Image
                   src="/images/avatar.jpg"
-                  alt="Sarah J."
+                  alt="Avatar de usuario"
                   fill
                   sizes="32px"
                   className="object-cover"
                 />
               </div>
               <div className="flex flex-col min-w-0">
-              <span className="text-sm font-medium text-white truncate capitalize">
-                {userInfo.name} {userInfo.lastname}
-              </span>
+                <span className="text-sm font-medium text-white truncate capitalize">
+                  {userInfo.name} {userInfo.lastname}
+                </span>
 
-              <div className="flex items-center gap-1.5 text-xs text-gray-400 capitalize mt-0.5">
-                {renderRoleIcon(userInfo.role)}
-                <span className="truncate">{userInfo.role || "Cargando..."}</span>
+                <div className="flex items-center gap-1.5 text-xs text-gray-400 capitalize mt-0.5">
+                  <UserShield className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                  <span className="truncate">
+                    {userInfo.role || "Cargando..."}
+                  </span>
+                </div>
               </div>
-            </div>
             </div>
           </div>
         </div>

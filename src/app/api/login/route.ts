@@ -65,7 +65,9 @@ export async function POST(request: Request) {
     });
 
     let rawRole = '';
+    let userRecord = null;
 
+    // 1. Buscar usuario por ID
     try {
       const { data: dbUserAuth } = await authClient
         .from('users')
@@ -74,13 +76,15 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (dbUserAuth) {
+        userRecord = dbUserAuth;
         rawRole = dbUserAuth.role || dbUserAuth.rol || dbUserAuth.tipo || '';
       }
     } catch (e) {
       console.error('Error consultando users por id con authClient:', e);
     }
 
-    if (!rawRole && email) {
+    // 2. Si no se encontró por ID, buscar por email
+    if (!userRecord && email) {
       try {
         const { data: dbEmailAuth } = await authClient
           .from('users')
@@ -89,11 +93,26 @@ export async function POST(request: Request) {
           .maybeSingle();
 
         if (dbEmailAuth) {
+          userRecord = dbEmailAuth;
           rawRole = dbEmailAuth.role || dbEmailAuth.rol || dbEmailAuth.tipo || '';
         }
       } catch (e) {
         console.error('Error consultando users por email con authClient:', e);
       }
+    }
+
+    // 3. Validar si el estatus del usuario es false
+    if (userRecord && userRecord.status === false) {
+      // Cerramos la sesión en Supabase para invalidar el token recién creado
+      await authClient.auth.signOut();
+
+      return NextResponse.json(
+        {
+          estado: 'Error 🔴',
+          mensaje: 'Tu cuenta está desactivada. Por favor, contacta al administrador para activarla.',
+        },
+        { status: 403 }
+      );
     }
 
     if (!rawRole) {
@@ -167,7 +186,7 @@ export async function POST(request: Request) {
       redirectTo: redirectTo,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Error desconocido";
+    const message = err instanceof Error ? err.message : 'Error desconocido';
     return NextResponse.json(
       { estado: 'Error de Conexión 🔴', mensaje: message },
       { status: 500 }

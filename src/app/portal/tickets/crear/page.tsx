@@ -1307,39 +1307,6 @@ function CrearSolicitudContent() {
             </dl>
           </Card>
 
-          <Card className="!p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
-                <Lightbulb className="h-4 w-4" />
-              </div>
-              <h3 className="text-xs font-bold text-slate-800">¿Podría resolverse ahora?</h3>
-            </div>
-            <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
-              Detectamos artículos recomendados en la Base de Conocimiento para tu consulta sobre{" "}
-              <strong className="text-slate-700">
-                {categoriaSeleccionada ? categoriaSeleccionada.name : "soporte técnico"}
-              </strong>.
-            </p>
-            <ul className="space-y-2">
-              {ARTICULOS.map((a) => (
-                <li key={a.titulo}>
-                  <button
-                    type="button"
-                    className="block w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:bg-slate-100"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-[11px] font-semibold leading-snug text-slate-800">{a.titulo}</p>
-                      <ArrowUpRight className="h-3 w-3 shrink-0 text-slate-400" />
-                    </div>
-                    <p className="mt-1.5 flex items-center gap-1.5 text-[10px] text-slate-500">
-                      <Clock className="h-3 w-3" /> {a.meta} •{" "}
-                      <span className="font-semibold text-slate-700">{a.extra}</span>
-                    </p>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Card>
 
           <Card className="!p-5">
             <h3 className="mb-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">

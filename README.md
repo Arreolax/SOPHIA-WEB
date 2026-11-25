@@ -52,4 +52,4 @@ o por sus iniciales <strong>SOPHIA</strong> es una aplicación que proporciona u
 | Auth & BD                  | Supabase (SDK cliente)               |
 | Estilos                    | CSS, assets SVG                      |
 | Herramientas de desarrollo | ESLint, Prettier                     |
-| Deploy                     | ---         |
+| Deploy                     | [Render](https://sophia-web-ojpa.onrender.com)       |
