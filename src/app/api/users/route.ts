@@ -228,3 +228,244 @@ export async function GET() {
     );
   }
 }
+
+export async function POST(request: Request) {
+  const ctx = await getAuthenticatedContext();
+  if ("error" in ctx) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  }
+
+  const { supabase, user } = ctx;
+  const { data: profile, error: profileError } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error("Error verificando permisos para crear usuarios:", profileError);
+    return NextResponse.json(
+      { error: "No se pudieron verificar los permisos del administrador." },
+      { status: 500 },
+    );
+  }
+
+  if (normalizarRol(profile?.role) !== "Administrador") {
+    return NextResponse.json(
+      { error: "No tienes permisos para crear usuarios." },
+      { status: 403 },
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "La solicitud no contiene datos válidos." },
+      { status: 400 },
+    );
+  }
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json(
+      { error: "La solicitud no contiene datos válidos." },
+      { status: 400 },
+    );
+  }
+
+  const payload = body as Record<string, unknown>;
+  const getText = (value: unknown) =>
+    typeof value === "string" ? value.trim() : "";
+  const name = getText(payload.name);
+  const username = getText(payload.username).replace(/^@/, "");
+  const email = getText(payload.email).toLowerCase();
+  const phone = getText(payload.phone);
+  const password = typeof payload.password === "string" ? payload.password : "";
+  const phoneDigits = phone.replace(/\D/g, "");
+
+  if (!name || !username || !email || !phone || !password) {
+    return NextResponse.json(
+      { error: "Todos los campos son obligatorios." },
+      { status: 400 },
+    );
+  }
+
+  if (!/^[a-zA-ZÁÉÍÓÚáéíóúÑñÜü\s]{2,50}$/.test(name)) {
+    return NextResponse.json(
+      { error: "Ingresa un nombre válido (de 2 a 50 caracteres)." },
+      { status: 400 },
+    );
+  }
+
+  if (!/^[a-zA-Z0-9._]{3,20}$/.test(username)) {
+    return NextResponse.json(
+      { error: "El nombre de usuario debe tener de 3 a 20 caracteres válidos." },
+      { status: 400 },
+    );
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email)) {
+    return NextResponse.json(
+      { error: "Ingresa un correo electrónico válido." },
+      { status: 400 },
+    );
+  }
+
+  if (!/^\+?[\d\s\-()]{10,18}$/.test(phone) || phoneDigits.length < 10 || phoneDigits.length > 15) {
+    return NextResponse.json(
+      { error: "El teléfono debe contener entre 10 y 15 dígitos." },
+      { status: 400 },
+    );
+  }
+
+  const isStrongPassword =
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[@#$%^&*(),.?":{}|<>]/.test(password);
+
+  if (!isStrongPassword) {
+    return NextResponse.json(
+      {
+        error:
+          "La contraseña debe tener mínimo 8 caracteres, una mayúscula, un número y un carácter especial.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    console.error("Falta SUPABASE_SERVICE_ROLE_KEY para crear usuarios.");
+    return NextResponse.json(
+      { error: "La creación de usuarios no está disponible en este momento." },
+      { status: 500 },
+    );
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  try {
+    const { data: existingUsername, error: usernameError } = await adminClient
+      .from("users")
+      .select("id")
+      .ilike("username", username)
+      .maybeSingle();
+
+    if (usernameError) {
+      console.error("Error verificando nombre de usuario:", usernameError);
+      return NextResponse.json(
+        { error: "No se pudo verificar el nombre de usuario." },
+        { status: 500 },
+      );
+    }
+
+    if (existingUsername) {
+      return NextResponse.json(
+        { error: "Este nombre de usuario ya está en uso.", campo: "username" },
+        { status: 409 },
+      );
+    }
+
+    const phoneE164 = phone.startsWith("+")
+      ? `+${phoneDigits}`
+      : phoneDigits.length === 10
+        ? `+52${phoneDigits}`
+        : `+${phoneDigits}`;
+    const { data, error: createError } =
+      await adminClient.auth.admin.createUser({
+        email,
+        password,
+        phone: phoneE164,
+        email_confirm: true,
+        user_metadata: {
+          name,
+          username,
+          phone,
+          telefono: phone,
+          role: "usuario",
+        },
+      });
+
+    if (createError) {
+      if (
+        createError.code === "email_exists" ||
+        createError.code === "user_already_exists"
+      ) {
+        return NextResponse.json(
+          { error: "Este correo electrónico ya está registrado.", campo: "email" },
+          { status: 409 },
+        );
+      }
+
+      console.error("Error creando usuario en Supabase Auth:", createError);
+      return NextResponse.json(
+        { error: "No se pudo crear el usuario." },
+        { status: 500 },
+      );
+    }
+
+    if (!data.user) {
+      console.error("Supabase Auth no devolvió el usuario recién creado.");
+      return NextResponse.json(
+        { error: "No se pudo confirmar la creación del usuario." },
+        { status: 500 },
+      );
+    }
+
+    const { error: profileInsertError } = await adminClient
+      .from("users")
+      .upsert(
+        {
+          id: data.user.id,
+          name,
+          email,
+          username,
+          role: "usuario",
+          status: true,
+        },
+        { onConflict: "id" },
+      );
+
+    if (profileInsertError) {
+      console.error("Error creando el perfil del nuevo usuario:", profileInsertError);
+      const { error: deleteError } = await adminClient.auth.admin.deleteUser(
+        data.user.id,
+      );
+      if (deleteError) {
+        console.error("Error revirtiendo la creación de Auth:", deleteError);
+      }
+      return NextResponse.json(
+        { error: "No se pudo guardar el perfil del usuario." },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        usuario: {
+          id: data.user.id,
+          iniciales: obtenerIniciales(name),
+          nombre: name,
+          username: `@${username}`,
+          correo: email,
+          rol: "Usuario",
+          statusBoolean: true,
+          estado: "Activo",
+          acceso: "Sin acceso",
+        },
+      },
+      { status: 201 },
+    );
+  } catch (err) {
+    console.error("Error procesando POST /api/users:", err);
+    return NextResponse.json(
+      { error: "Error interno al crear el usuario." },
+      { status: 500 },
+    );
+  }
+}

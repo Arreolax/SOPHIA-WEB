@@ -716,7 +716,7 @@ export default function ColaSolicitudesPage() {
           </div>
           <button
             type="button"
-            onClick={() => router.push("/soporte/nuevo")}
+            onClick={() => router.push("/web/ticketInt")}
             className="flex items-center gap-2 rounded-xl bg-[#262a40] px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-[#1c2033]"
           >
             <Plus className="h-4 w-4" />
