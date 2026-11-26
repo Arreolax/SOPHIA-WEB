@@ -12,6 +12,11 @@ import {
   UserCheck,
 } from "lucide-react";
 import Image from "next/image";
+import {
+  USER_PROFILE_UPDATED_EVENT,
+  getRoleLabel,
+  type UserProfile,
+} from "../lib/userProfile";
 
 const navItems = [
   { name: "Dashboard", href: "/portal/dashboard", icon: LayoutDashboard },
@@ -26,6 +31,8 @@ export default function Sidebar() {
   const [userInfo, setUserInfo] = useState({
     name: "Cargando...",
     username: "",
+    avatar: "/images/avatar.jpg",
+    role: "usuario",
   });
   const [notification, setNotification] = useState({
     show: false,
@@ -50,16 +57,41 @@ export default function Sidebar() {
           setUserInfo({
             name: data.name || "",
             username: data.username || "",
+            avatar: data.avatar || "/images/avatar.jpg",
+            role: data.role || "usuario",
           });
         } else {
-          setUserInfo({ name: "Invitado", username: "Invitado" });
+          setUserInfo({
+            name: "Invitado",
+            username: "Invitado",
+            avatar: "/images/avatar.jpg",
+            role: "usuario",
+          });
         }
       } catch (error) {
-        setUserInfo({ name: "Invitado", username: "Invitado" });
+        setUserInfo({
+          name: "Invitado",
+          username: "Invitado",
+          avatar: "/images/avatar.jpg",
+          role: "usuario",
+        });
       }
     };
 
-    fetchUser();
+    const handleProfileUpdate = (event: Event) => {
+      const profile = (event as CustomEvent<UserProfile>).detail;
+      setUserInfo({
+        name: profile.name || "",
+        username: profile.username || "",
+        avatar: profile.avatar || "/images/avatar.jpg",
+        role: profile.role || "usuario",
+      });
+    };
+
+    window.addEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate);
+    void fetchUser();
+    return () =>
+      window.removeEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate);
   }, []);
 
   return (
@@ -162,7 +194,7 @@ export default function Sidebar() {
             >
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-400 relative">
                 <Image
-                  src="/images/avatar.jpg"
+                  src={userInfo.avatar}
                   alt="Avatar de usuario"
                   fill
                   sizes="32px"
@@ -176,7 +208,7 @@ export default function Sidebar() {
 
                 <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
                   <UserCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                  <span className="truncate">Usuario</span>
+                  <span className="truncate">{getRoleLabel(userInfo.role)}</span>
                 </div>
               </div>
             </div>

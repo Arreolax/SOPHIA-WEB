@@ -15,6 +15,11 @@ import {
   UserShield,
 } from "lucide-react";
 import Image from "next/image";
+import {
+  USER_PROFILE_UPDATED_EVENT,
+  getRoleLabel,
+  type UserProfile,
+} from "../lib/userProfile";
 
 const adminNavItems = [
   { name: "Dashboard", href: "/web/dashboard", icon: LayoutDashboard },
@@ -33,6 +38,7 @@ export default function Sidebar() {
     name: "Cargando...",
     lastname: "",
     role: "",
+    avatar: "/images/avatar.jpg",
   });
   const [notification, setNotification] = useState({
     show: false,
@@ -56,17 +62,41 @@ export default function Sidebar() {
           setUserInfo({
             name: data.name || "",
             lastname: data.lastname || "",
-            role: data.role || "",
+            role: getRoleLabel(data.role),
+            avatar: data.avatar || "/images/avatar.jpg",
           });
         } else {
-          setUserInfo({ name: "Invitado", lastname: "", role: "" });
+          setUserInfo({
+            name: "Invitado",
+            lastname: "",
+            role: "",
+            avatar: "/images/avatar.jpg",
+          });
         }
       } catch (error) {
-        setUserInfo({ name: "Invitado", lastname: "", role: "" });
+        setUserInfo({
+          name: "Invitado",
+          lastname: "",
+          role: "",
+          avatar: "/images/avatar.jpg",
+        });
       }
     };
 
-    fetchUser();
+    const handleProfileUpdate = (event: Event) => {
+      const profile = (event as CustomEvent<UserProfile>).detail;
+      setUserInfo({
+        name: profile.name || "",
+        lastname: "",
+        role: getRoleLabel(profile.role),
+        avatar: profile.avatar || "/images/avatar.jpg",
+      });
+    };
+
+    window.addEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate);
+    void fetchUser();
+    return () =>
+      window.removeEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate);
   }, []);
 
   return (
@@ -169,7 +199,7 @@ export default function Sidebar() {
             >
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-400 relative">
                 <Image
-                  src="/images/avatar.jpg"
+                  src={userInfo.avatar}
                   alt="Avatar de usuario"
                   fill
                   sizes="32px"

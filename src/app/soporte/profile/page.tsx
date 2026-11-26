@@ -5,6 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  USER_PROFILE_UPDATED_EVENT,
+  type UserProfile,
+} from "../../lib/userProfile";
+import {
   BadgeCheck,
   Bell,
   Camera,
@@ -35,7 +39,7 @@ type PerfilTecnico = {
   emailVerificado: boolean;
   telefono: string;
   role: string;
-  avatar: "/images/avatar.jpg",
+  avatar: string;
 };
 
 type PerfilResponse = {
@@ -202,6 +206,34 @@ export default function ProfilePage() {
 
     void cargarPerfil();
   }, []);
+
+  useEffect(() => {
+    const handleProfileUpdate = (event: Event) => {
+      const profile = (event as CustomEvent<UserProfile>).detail;
+      const nombre = profile.name || "";
+
+      setPerfil((current) => ({
+        ...current,
+        id: profile.id || current.id,
+        nombre,
+        email: profile.email,
+        emailVerificado: profile.emailVerified,
+        telefono: profile.phone,
+        role: profile.role,
+        avatar: profile.avatar || "/images/avatar.jpg",
+      }));
+
+      if (!hayCambios) {
+        const updatedPreferences = { ...PREFS_INICIALES, nombre };
+        setPrefs(updatedPreferences);
+        setGuardado(updatedPreferences);
+      }
+    };
+
+    window.addEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate);
+    return () =>
+      window.removeEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate);
+  }, [hayCambios]);
 
   // Avisa al navegador si intentas cerrar la pestaña con cambios sin guardar
   useEffect(() => {

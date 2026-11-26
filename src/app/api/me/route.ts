@@ -187,21 +187,22 @@ export async function GET(request: Request) {
     "";
 
   const phone = getProfileValue(
+    dbUser?.phone,
+    dbUser?.telefono,
     user.phone,
     user.user_metadata?.phone,
     user.user_metadata?.telefono,
-    dbUser?.phone,
-    dbUser?.telefono,
   );
 
   const encryptedRoleToken = cookieStore.get("ur-token")?.value;
-  let role = encryptedRoleToken ? await decryptRole(encryptedRoleToken) : null;
+  let role =
+    dbUser?.role ||
+    dbUser?.rol ||
+    dbUser?.tipo ||
+    (encryptedRoleToken ? await decryptRole(encryptedRoleToken) : null);
 
   if (!role) {
     role =
-      dbUser?.role ||
-      dbUser?.rol ||
-      dbUser?.tipo ||
       user.user_metadata?.role ||
       user.user_metadata?.rol ||
       user.app_metadata?.role ||
@@ -218,8 +219,9 @@ export async function GET(request: Request) {
     name,
     username,
     role,
-    email: user.email,
+    email: dbUser?.email || user.email,
     phone,
+    status: dbUser?.status !== false,
     avatar:
       getProfileValue(
         dbUser?.avatar_url,

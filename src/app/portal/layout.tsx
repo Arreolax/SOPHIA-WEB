@@ -1,5 +1,6 @@
 import Sidebar from "../components/Sidebar-portal";
 import { FallingLeavesWrapper } from "../components/FallingLeavesWrapper";
+import UserSessionMonitor from "../components/UserSessionMonitor";
 
 export default function DashboardLayout({
   children,
@@ -8,6 +9,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="flex h-screen w-full bg-gray-100 overflow-hidden">
+      <UserSessionMonitor />
       <div className="relative z-20 shrink-0">
         <Sidebar />
       </div>

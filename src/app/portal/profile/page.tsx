@@ -5,6 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  USER_PROFILE_UPDATED_EVENT,
+  type UserProfile,
+} from "../../lib/userProfile";
+import {
   BadgeCheck,
   Bell,
   Camera,
@@ -430,6 +434,40 @@ export default function EmployeeProfilePage() {
 
     void cargarPerfil();
   }, []);
+
+  useEffect(() => {
+    const handleProfileUpdate = (event: Event) => {
+      const profile = (event as CustomEvent<UserProfile>).detail;
+      setPerfil((current) => ({
+        ...current,
+        id: profile.id || current.id,
+        nombre: profile.name,
+        username: profile.username,
+        role: profile.role,
+        email: profile.email,
+        telefono: profile.phone,
+        avatar: profile.avatar || current.avatar,
+        emailVerificado: profile.emailVerified,
+      }));
+
+      if (!hayCambios) {
+        const updatedPreferences: Preferencias = {
+          nombre: profile.name || "",
+          username: profile.username || "",
+          telefono: profile.phone || "",
+          cambiosEstado: profile.notifications?.cambiosEstado ?? true,
+          notifCorreo: profile.notifications?.notifCorreo ?? true,
+          resumenSemanal: profile.notifications?.resumenSemanal ?? false,
+        };
+        setPrefs(updatedPreferences);
+        setGuardado(updatedPreferences);
+      }
+    };
+
+    window.addEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate);
+    return () =>
+      window.removeEventListener(USER_PROFILE_UPDATED_EVENT, handleProfileUpdate);
+  }, [hayCambios]);
 
   // Verificación de disponibilidad de username cuando cambia respecto al guardado
   useEffect(() => {
