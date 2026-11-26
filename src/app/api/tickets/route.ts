@@ -176,7 +176,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const { supabase, user } = auth;
+    const { supabase, user, role } = auth;
     const body = await request.json();
 
     const {
@@ -190,6 +190,8 @@ export async function POST(request: Request) {
       priority = "LOW",
       category_id,
       draft = false,
+      created_by,
+      assigned_to,
     } = body;
 
     const isDraft = draft === true || Number(draft) === 1;
@@ -222,6 +224,9 @@ export async function POST(request: Request) {
       );
     }
 
+    // Solo el admin puede crear tickets en nombre de otro usuario o pre-asignar técnico
+    const creatorId = role === "admin" && created_by ? created_by : user.id;
+    const assigneeId = role === "admin" && assigned_to ? assigned_to : null;
 
     const { data: newTicket, error } = await supabase
       .from("ticket")
@@ -236,13 +241,15 @@ export async function POST(request: Request) {
         priority: String(priority).toUpperCase(),
         status: "OPEN",
         category_id,
-        created_by: user.id,
+        created_by: creatorId,
+        assigned_to: assigneeId,
         draft: isDraft,
       })
       .select(`
         *,
         category:category_id ( id, name ),
-        creator:created_by ( id, name, username, email )
+        creator:created_by ( id, name, username, email ),
+        assignee:assigned_to ( id, name, username, email )
       `)
       .single();
 

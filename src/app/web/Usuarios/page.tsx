@@ -6,7 +6,6 @@ import {
   Filter,
   Bell,
   User,
-  Upload,
   Plus,
   Users,
   UserCheck,
@@ -47,17 +46,24 @@ type FormularioUsuario = {
   username: string;
   correo: string;
   telefono: string;
+  rol: Usuario['rol'];
   password: string;
   confirmarPassword: string;
 };
 
 type ErroresFormulario = Partial<Record<keyof FormularioUsuario, string>>;
 
+type ErroresEdicion = {
+  nombre?: string;
+  username?: string;
+};
+
 const FORMULARIO_INICIAL: FormularioUsuario = {
   nombre: '',
   username: '',
   correo: '',
   telefono: '',
+  rol: 'Usuario',
   password: '',
   confirmarPassword: '',
 };
@@ -67,6 +73,7 @@ const ITEMS_POR_PAGINA = 10;
 export default function UsuariosYRolesPage() {
   // Estados de datos desde la API
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
 
@@ -75,6 +82,8 @@ export default function UsuariosYRolesPage() {
   const [filtroRol, setFiltroRol] = useState('Todos');
   const [filtroEstado, setFiltroEstado] = useState('Todos');
   const [paginaActual, setPaginaActual] = useState(1);
+
+  // Estados para modal de creación
   const [modalCrearAbierto, setModalCrearAbierto] = useState(false);
   const [formularioUsuario, setFormularioUsuario] =
     useState<FormularioUsuario>(FORMULARIO_INICIAL);
@@ -84,11 +93,18 @@ export default function UsuariosYRolesPage() {
   const [creandoUsuario, setCreandoUsuario] = useState(false);
   const [errorCreacion, setErrorCreacion] = useState<string | null>(null);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
+
+  // Estados para modal de edición
   const [usuarioSeleccionado, setUsuarioSeleccionado] =
     useState<Usuario | null>(null);
+  const [nombreEdicion, setNombreEdicion] = useState('');
+  const [usernameEdicion, setUsernameEdicion] = useState('');
   const [rolSeleccionado, setRolSeleccionado] =
     useState<Usuario['rol']>('Usuario');
   const [usuarioActivo, setUsuarioActivo] = useState(false);
+  const [erroresEdicion, setErroresEdicion] = useState<ErroresEdicion>({});
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
 
   const cerrarModalCrear = useCallback(() => {
     if (creandoUsuario) return;
@@ -111,7 +127,10 @@ export default function UsuariosYRolesPage() {
     return () => window.removeEventListener('keydown', manejarEscape);
   }, [modalCrearAbierto, cerrarModalCrear]);
 
-  const cambiarCampo = (campo: keyof FormularioUsuario, valor: string) => {
+  const cambiarCampo = <K extends keyof FormularioUsuario>(
+    campo: K,
+    valor: FormularioUsuario[K],
+  ) => {
     setFormularioUsuario((actual) => ({ ...actual, [campo]: valor }));
     setErroresFormulario((actual) => ({
       ...actual,
@@ -123,13 +142,21 @@ export default function UsuariosYRolesPage() {
 
   const abrirModalEdicion = (usuario: Usuario) => {
     setUsuarioSeleccionado(usuario);
+    setNombreEdicion(usuario.nombre);
+    setUsernameEdicion(usuario.username.replace(/^@/, ''));
     setRolSeleccionado(usuario.rol);
     setUsuarioActivo(usuario.statusBoolean);
+    setErroresEdicion({});
+    setErrorEdicion(null);
+    setMensajeExito(null);
   };
 
   const cerrarModalEdicion = useCallback(() => {
+    if (guardandoEdicion) return;
     setUsuarioSeleccionado(null);
-  }, []);
+    setErroresEdicion({});
+    setErrorEdicion(null);
+  }, [guardandoEdicion]);
 
   useEffect(() => {
     if (!usuarioSeleccionado) return;
@@ -141,6 +168,80 @@ export default function UsuariosYRolesPage() {
     window.addEventListener('keydown', manejarEscape);
     return () => window.removeEventListener('keydown', manejarEscape);
   }, [usuarioSeleccionado, cerrarModalEdicion]);
+
+  const guardarEdicionUsuario = async () => {
+    if (!usuarioSeleccionado || guardandoEdicion) return;
+
+    setErrorEdicion(null);
+
+    const nombreLimpio = nombreEdicion.trim();
+    const usernameLimpio = usernameEdicion.replace(/^@/, '').trim();
+    const errores: ErroresEdicion = {};
+
+    if (!/^[a-zA-ZÁÉÍÓÚáéíóúÑñÜü\s]{2,50}$/.test(nombreLimpio)) {
+      errores.nombre = 'Ingresa un nombre válido (de 2 a 50 caracteres).';
+    }
+    if (!/^[a-zA-Z0-9._]{3,20}$/.test(usernameLimpio)) {
+      errores.username = 'Usa de 3 a 20 caracteres: letras, números, punto o _.';
+    }
+
+    setErroresEdicion(errores);
+    if (Object.keys(errores).length > 0) return;
+
+    setGuardandoEdicion(true);
+
+    try {
+      const response = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: usuarioSeleccionado.id,
+          name: nombreLimpio,
+          username: usernameLimpio,
+          role: rolSeleccionado,
+          status: usuarioActivo,
+        }),
+      });
+
+      const data: { error?: string; campo?: string; usuario?: Usuario } =
+        await response.json();
+
+      if (!response.ok) {
+        if (data.campo === 'username' && data.error) {
+          setErroresEdicion((actual) => ({ ...actual, username: data.error }));
+        }
+        if (data.campo === 'name' && data.error) {
+          setErroresEdicion((actual) => ({ ...actual, nombre: data.error }));
+        }
+        throw new Error(data.error || 'No se pudieron guardar los cambios.');
+      }
+
+      const usuarioActualizado = data.usuario;
+      if (!usuarioActualizado) {
+        throw new Error('El servidor no devolvió los datos actualizados.');
+      }
+
+      setUsuarios((actuales) =>
+        actuales.map((u) =>
+          u.id === usuarioActualizado.id ? usuarioActualizado : u,
+        ),
+      );
+      setUsuarioSeleccionado(null);
+      setErroresEdicion({});
+      setErrorEdicion(null);
+      setMensajeExito(
+        `Usuario ${usuarioActualizado.nombre} actualizado correctamente.`,
+      );
+    } catch (err) {
+      setErrorEdicion(
+        err instanceof Error
+          ? err.message
+          : 'Ocurrió un error al actualizar el usuario.',
+      );
+    } finally {
+      setGuardandoEdicion(false);
+    }
+  };
 
   const enviarFormularioUsuario = async (
     event: React.FormEvent<HTMLFormElement>,
@@ -154,6 +255,7 @@ export default function UsuariosYRolesPage() {
     const telefono = formularioUsuario.telefono.trim();
     const digitosTelefono = telefono.replace(/\D/g, '');
     const password = formularioUsuario.password;
+    const rol = formularioUsuario.rol;
     const errores: ErroresFormulario = {};
 
     if (!/^[a-zA-ZÁÉÍÓÚáéíóúÑñÜü\s]{2,50}$/.test(nombre)) {
@@ -171,6 +273,9 @@ export default function UsuariosYRolesPage() {
       digitosTelefono.length > 15
     ) {
       errores.telefono = 'Ingresa un teléfono válido (10 a 15 dígitos).';
+    }
+    if (!['Administrador', 'Técnico', 'Usuario'].includes(rol)) {
+      errores.rol = 'Selecciona un rol válido.';
     }
     if (
       password.length < 8 ||
@@ -192,7 +297,14 @@ export default function UsuariosYRolesPage() {
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: nombre, username, email: correo, phone: telefono, password }),
+        body: JSON.stringify({
+          name: nombre,
+          username,
+          email: correo,
+          phone: telefono,
+          role: rol,
+          password,
+        }),
       });
       const data: { error?: string; campo?: string; usuario?: Usuario } =
         await response.json();
@@ -257,6 +369,9 @@ export default function UsuariosYRolesPage() {
 
         if (!cancelado) {
           setUsuarios(Array.isArray(data.usuarios) ? data.usuarios : []);
+          setCurrentUserId(
+            typeof data.currentUserId === 'string' ? data.currentUserId : null,
+          );
         }
       } catch (err) {
         if (!cancelado) {
@@ -318,27 +433,21 @@ export default function UsuariosYRolesPage() {
     usuariosFiltrados.length,
   );
 
+  const esMismoUsuarioEdicion =
+    Boolean(usuarioSeleccionado) && usuarioSeleccionado?.id === currentUserId;
+  const hayCambiosEdicion =
+    Boolean(usuarioSeleccionado) &&
+    (nombreEdicion.trim() !== usuarioSeleccionado?.nombre ||
+      usernameEdicion.replace(/^@/, '').trim() !==
+        (usuarioSeleccionado?.username || '').replace(/^@/, '') ||
+      rolSeleccionado !== usuarioSeleccionado?.rol ||
+      usuarioActivo !== usuarioSeleccionado?.statusBoolean);
+
   return (
     <div className="min-h-screen bg-[#F5F7FB] text-slate-800 flex flex-col">
       {/* Barra Superior (Topbar) */}
       <header className="bg-white border-b border-slate-200/80 px-6 py-3 flex items-center justify-between gap-4 sticky top-0 z-10">
         <div className="flex items-center gap-3 flex-1 max-w-2xl">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Buscar tickets, usuarios, incidentes o IPs..."
-              className="w-full bg-[#F8FAFC] border border-slate-200/80 rounded-lg pl-10 pr-12 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-slate-400 bg-white border border-slate-200 rounded px-1.5 py-0.5">
-              ⌘K
-            </span>
-          </div>
-
-          <button className="flex items-center gap-2 bg-[#F1F5F9] hover:bg-slate-200/70 text-slate-700 text-xs font-medium px-3.5 py-2 rounded-lg transition-colors">
-            <Filter className="w-3.5 h-3.5 text-slate-500" />
-            Cola General
-          </button>
         </div>
 
         <div className="flex items-center gap-3">
@@ -354,9 +463,8 @@ export default function UsuariosYRolesPage() {
 
       {/* Contenedor Principal */}
       <main className="flex-1 max-w-350 w-full mx-auto px-6 py-6 space-y-6">
-        {/* Breadcrumb y Encabezado */}
+        {/* Encabezado */}
         <div>
-
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-[#0F172A] tracking-tight">
@@ -388,7 +496,7 @@ export default function UsuariosYRolesPage() {
           </div>
         </div>
 
-        {/* Alerta de error si falla la API */}
+        {/* Alertas */}
         {errorCarga && (
           <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-xs flex items-center gap-2.5">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -402,7 +510,7 @@ export default function UsuariosYRolesPage() {
           </div>
         )}
 
-        {/* Tarjetas KPI (4 columnas) */}
+        {/* Tarjetas KPI */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs flex justify-between items-start">
             <div>
@@ -583,12 +691,13 @@ export default function UsuariosYRolesPage() {
 
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${usuario.rol === 'Administrador'
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                            usuario.rol === 'Administrador'
                               ? 'bg-green-400/30 text-black'
                               : usuario.rol === 'Técnico'
                                 ? 'bg-yellow-400/30 text-black'
                                 : 'bg-blue-400/30 text-black'
-                            }`}
+                          }`}
                         >
                           {usuario.rol}
                         </span>
@@ -600,12 +709,13 @@ export default function UsuariosYRolesPage() {
 
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${usuario.estado === 'Activo'
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                            usuario.estado === 'Activo'
                               ? 'bg-[#DCFCE7] text-[#15803D]'
                               : usuario.estado === 'Inactivo'
                                 ? 'bg-[#FEE2E2] text-[#B91C1C]'
                                 : 'bg-[#FEF3C7] text-[#B45309]'
-                            }`}
+                          }`}
                         >
                           {usuario.estado}
                         </span>
@@ -653,10 +763,11 @@ export default function UsuariosYRolesPage() {
                   <button
                     key={numPagina}
                     onClick={() => setPaginaActual(numPagina)}
-                    className={`w-7 h-7 rounded-lg font-semibold flex items-center justify-center transition-colors ${paginaActual === numPagina
+                    className={`w-7 h-7 rounded-lg font-semibold flex items-center justify-center transition-colors ${
+                      paginaActual === numPagina
                         ? 'bg-[#161B33] text-white'
                         : 'bg-[#F1F5F9] text-slate-600 hover:bg-slate-200'
-                      }`}
+                    }`}
                   >
                     {numPagina}
                   </button>
@@ -675,6 +786,7 @@ export default function UsuariosYRolesPage() {
         </section>
       </main>
 
+      {/* Modal Crear Usuario */}
       {modalCrearAbierto && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
@@ -847,6 +959,47 @@ export default function UsuariosYRolesPage() {
               </div>
 
               <div>
+                <label
+                  htmlFor="nuevo-rol"
+                  className="mb-1.5 block text-xs font-semibold text-slate-700"
+                >
+                  Rol del usuario
+                </label>
+                <div className="relative">
+                  <Shield className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <select
+                    id="nuevo-rol"
+                    value={formularioUsuario.rol}
+                    onChange={(event) => {
+                      const valor = event.target.value;
+                      if (
+                        valor === 'Administrador' ||
+                        valor === 'Técnico' ||
+                        valor === 'Usuario'
+                      ) {
+                        cambiarCampo('rol', valor);
+                      }
+                    }}
+                    aria-invalid={Boolean(erroresFormulario.rol)}
+                    className={`w-full rounded-xl border bg-slate-50/60 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:bg-white focus:ring-2 ${
+                      erroresFormulario.rol
+                        ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                        : 'border-slate-200 focus:border-indigo-400 focus:ring-indigo-100'
+                    }`}
+                  >
+                    <option value="Usuario">Usuario</option>
+                    <option value="Técnico">Técnico</option>
+                    <option value="Administrador">Administrador</option>
+                  </select>
+                </div>
+                {erroresFormulario.rol && (
+                  <p className="mt-1 text-[11px] text-rose-600">
+                    {erroresFormulario.rol}
+                  </p>
+                )}
+              </div>
+
+              <div>
                 <div className="mb-1.5 flex items-center justify-between gap-3">
                   <label
                     htmlFor="nuevo-password"
@@ -1004,6 +1157,7 @@ export default function UsuariosYRolesPage() {
         </div>
       )}
 
+      {/* Modal Editar Usuario */}
       {usuarioSeleccionado && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
@@ -1033,13 +1187,23 @@ export default function UsuariosYRolesPage() {
                     id="editar-usuario-descripcion"
                     className="mt-1 text-xs text-slate-500"
                   >
-                    Consulta los datos y configura el rol y estado de la cuenta.
+                    Modifica los datos de perfil, rol y estado de la cuenta.
                   </p>
                 </div>
               </div>
             </header>
 
-            <div className="space-y-3.5 px-6 py-4">
+            <div className="space-y-4 px-6 py-4">
+              {errorEdicion && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-700"
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{errorEdicion}</span>
+                </div>
+              )}
+
               <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-[#F8FAFC] p-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E0E7FF] text-sm font-bold text-[#4338CA]">
                   {usuarioSeleccionado.iniciales}
@@ -1055,21 +1219,80 @@ export default function UsuariosYRolesPage() {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-100 px-3.5 py-2.5">
-                  <p className="text-[11px] font-medium text-slate-400">
-                    Nombre de usuario
-                  </p>
-                  <p className="mt-1 truncate text-sm font-medium text-slate-700">
-                    {usuarioSeleccionado.username || '—'}
-                  </p>
+                <div>
+                  <label
+                    htmlFor="editar-usuario-nombre"
+                    className="mb-1.5 block text-xs font-semibold text-slate-700"
+                  >
+                    Nombre
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="editar-usuario-nombre"
+                      type="text"
+                      disabled={guardandoEdicion}
+                      value={nombreEdicion}
+                      onChange={(event) => {
+                        setNombreEdicion(event.target.value);
+                        setErroresEdicion((actual) => ({
+                          ...actual,
+                          nombre: undefined,
+                        }));
+                        setErrorEdicion(null);
+                      }}
+                      aria-invalid={Boolean(erroresEdicion.nombre)}
+                      className={`w-full rounded-xl border bg-slate-50/60 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:bg-white focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                        erroresEdicion.nombre
+                          ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                          : 'border-slate-200 focus:border-indigo-400 focus:ring-indigo-100'
+                      }`}
+                      placeholder="Nombre completo"
+                    />
+                  </div>
+                  {erroresEdicion.nombre && (
+                    <p className="mt-1 text-[11px] text-rose-600">
+                      {erroresEdicion.nombre}
+                    </p>
+                  )}
                 </div>
-                <div className="rounded-xl border border-slate-100 px-3.5 py-2.5">
-                  <p className="text-[11px] font-medium text-slate-400">
-                    Último acceso
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-slate-700">
-                    {usuarioSeleccionado.acceso}
-                  </p>
+
+                <div>
+                  <label
+                    htmlFor="editar-usuario-username"
+                    className="mb-1.5 block text-xs font-semibold text-slate-700"
+                  >
+                    Nombre de usuario
+                  </label>
+                  <div className="relative">
+                    <AtSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="editar-usuario-username"
+                      type="text"
+                      disabled={guardandoEdicion}
+                      value={usernameEdicion}
+                      onChange={(event) => {
+                        setUsernameEdicion(event.target.value);
+                        setErroresEdicion((actual) => ({
+                          ...actual,
+                          username: undefined,
+                        }));
+                        setErrorEdicion(null);
+                      }}
+                      aria-invalid={Boolean(erroresEdicion.username)}
+                      className={`w-full rounded-xl border bg-slate-50/60 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:bg-white focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                        erroresEdicion.username
+                          ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                          : 'border-slate-200 focus:border-indigo-400 focus:ring-indigo-100'
+                      }`}
+                      placeholder="nombre.usuario"
+                    />
+                  </div>
+                  {erroresEdicion.username && (
+                    <p className="mt-1 text-[11px] text-rose-600">
+                      {erroresEdicion.username}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1085,6 +1308,7 @@ export default function UsuariosYRolesPage() {
                   <select
                     id="editar-usuario-rol"
                     value={rolSeleccionado}
+                    disabled={guardandoEdicion || esMismoUsuarioEdicion}
                     onChange={(event) => {
                       const rol = event.target.value;
                       if (
@@ -1093,9 +1317,10 @@ export default function UsuariosYRolesPage() {
                         rol === 'Usuario'
                       ) {
                         setRolSeleccionado(rol);
+                        setErrorEdicion(null);
                       }
                     }}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <option value="Administrador">Administrador</option>
                     <option value="Técnico">Técnico</option>
@@ -1116,12 +1341,16 @@ export default function UsuariosYRolesPage() {
                   <button
                     type="button"
                     role="switch"
+                    disabled={guardandoEdicion || esMismoUsuarioEdicion}
                     aria-checked={usuarioActivo}
                     aria-label={
                       usuarioActivo ? 'Desactivar usuario' : 'Activar usuario'
                     }
-                    onClick={() => setUsuarioActivo((activo) => !activo)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                    onClick={() => {
+                      setUsuarioActivo((activo) => !activo);
+                      setErrorEdicion(null);
+                    }}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       usuarioActivo ? 'bg-[#161B33]' : 'bg-slate-300'
                     }`}
                   >
@@ -1134,21 +1363,31 @@ export default function UsuariosYRolesPage() {
                 </div>
               </div>
 
+              {esMismoUsuarioEdicion && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
+                  Por seguridad, no puedes modificar el rol ni desactivar tu propia cuenta en sesión.
+                </p>
+              )}
+
               <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={cerrarModalEdicion}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                  disabled={guardandoEdicion}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  disabled
-                  title="La edición estará disponible próximamente."
-                  className="rounded-lg bg-[#161B33] px-4 py-2 text-xs font-semibold text-white opacity-50"
+                  onClick={guardarEdicionUsuario}
+                  disabled={guardandoEdicion || !hayCambiosEdicion}
+                  className="flex items-center justify-center gap-2 rounded-lg bg-[#161B33] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#1E2544] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Guardar cambios
+                  {guardandoEdicion && (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  )}
+                  {guardandoEdicion ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
             </div>

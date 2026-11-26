@@ -576,19 +576,7 @@ export default function DashboardAdministrativoPage() {
               placeholder="Buscar tickets, equipos, responsables..."
               className="w-full bg-[#F8FAFC] border border-slate-200/80 rounded-lg pl-10 pr-12 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-slate-400 bg-white border border-slate-200 rounded px-1.5 py-0.5">
-              ⌘K
-            </span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => router.push('/soporte/tickets')}
-            className="flex items-center gap-2 bg-[#F1F5F9] hover:bg-slate-200/70 text-slate-700 text-xs font-medium px-3.5 py-2 rounded-lg transition-colors"
-          >
-            <Filter className="w-3.5 h-3.5 text-slate-500" />
-            Cola General
-          </button>
         </div>
 
         <div className="flex items-center gap-3">
@@ -612,11 +600,6 @@ export default function DashboardAdministrativoPage() {
       <main className="flex-1 max-w-350 w-full mx-auto px-6 py-6 space-y-6">
         {/* Breadcrumb, Encabezado y Filtros */}
         <div className="space-y-4">
-          <nav className="text-xs text-slate-400 flex items-center gap-1.5">
-            <span>Administración</span>
-            <span>›</span>
-            <span className="text-slate-600 font-medium">Dashboard administrativo</span>
-          </nav>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -772,7 +755,7 @@ export default function DashboardAdministrativoPage() {
 
                 <button
                   type="button"
-                  onClick={() => router.push('/soporte/tickets')}
+                  onClick={() => router.push('/web/tickets')}
                   className="flex items-center gap-1.5 bg-[#E2E8F0]/90 hover:bg-slate-300/80 text-slate-800 text-xs font-semibold px-4 py-2 rounded-lg transition-colors shrink-0 self-end sm:self-auto"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -944,7 +927,7 @@ export default function DashboardAdministrativoPage() {
 
                 <button
                   type="button"
-                  onClick={() => router.push('/soporte/tickets')}
+                  onClick={() => router.push('/web/tickets')}
                   className="flex items-center gap-2 bg-[#EEF2F6] hover:bg-slate-200/80 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors self-start sm:self-auto"
                 >
                   <Users className="w-3.5 h-3.5 text-slate-600" />
@@ -1012,7 +995,7 @@ export default function DashboardAdministrativoPage() {
 
                 <button
                   type="button"
-                  onClick={() => router.push('/soporte/tickets')}
+                  onClick={() => router.push('/web/tickets')}
                   className="flex items-center gap-1.5 bg-[#EEF2F6] hover:bg-slate-200/80 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors self-start sm:self-auto"
                 >
                   <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
@@ -1042,7 +1025,7 @@ export default function DashboardAdministrativoPage() {
                       ticketsPaginados.map((ticket) => (
                         <tr
                           key={ticket.id}
-                          onClick={() => router.push(`/soporte/assignment?id=${ticket.id}`)}
+                          onClick={() => router.push(`/web/tickets/${ticket.id}`)}
                           className="hover:bg-slate-50/80 transition-colors cursor-pointer"
                         >
                           <td className="py-3.5 px-4 font-bold text-[#0F172A]">{ticket.displayId}</td>

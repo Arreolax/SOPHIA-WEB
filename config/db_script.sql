@@ -197,3 +197,95 @@ $$;
 
 revoke all on function public.get_users_with_auth() from public;
 grant execute on function public.get_users_with_auth() to authenticated;
+
+-- Editar usuarios admin
+drop function if exists public.admin_update_user(uuid, text, boolean);
+
+create or replace function public.admin_update_user(
+  target_user_id uuid,
+  new_name character varying(100),
+  new_username character varying,
+  new_role text,
+  new_status boolean
+)
+returns table (
+  id uuid,
+  name character varying(100),
+  email character varying(150),
+  username character varying,
+  role text,
+  status boolean,
+  last_sign_in_at timestamp with time zone,
+  email_confirmed_at timestamp with time zone
+)
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  caller_role text;
+begin
+  -- Verifica que quien ejecuta la función sea administrador
+  select u.role into caller_role
+  from public.users u
+  where u.id = auth.uid();
+
+  if caller_role is null or lower(trim(caller_role)) not like '%admin%' then
+    raise exception 'No tienes permisos para editar usuarios.';
+  end if;
+
+  -- Evita auto-bloqueo o pérdida de permisos del administrador actual
+  if target_user_id = auth.uid() and (not new_status or lower(trim(new_role)) <> 'admin') then
+    raise exception 'No puedes desactivar tu propia cuenta ni quitarte el rol de Administrador.';
+  end if;
+
+  if not exists (select 1 from public.users u where u.id = target_user_id) then
+    raise exception 'El usuario seleccionado no existe.';
+  end if;
+
+  -- Verifica que el nuevo username no esté en uso por otro usuario
+  if exists (
+    select 1
+    from public.users u
+    where lower(u.username) = lower(new_username)
+      and u.id <> target_user_id
+  ) then
+    raise exception 'Este nombre de usuario ya está en uso.';
+  end if;
+
+  -- Actualiza perfil en public.users
+  update public.users u
+  set name = new_name,
+      username = new_username,
+      role = new_role,
+      status = new_status
+  where u.id = target_user_id;
+
+  -- Sincroniza metadatos y estado de acceso en auth.users
+  update auth.users au
+  set raw_user_meta_data = coalesce(au.raw_user_meta_data, '{}'::jsonb) || jsonb_build_object(
+        'name', new_name,
+        'username', new_username,
+        'role', new_role
+      ),
+      banned_until = case when new_status then null else '2099-12-31 23:59:59+00'::timestamptz end
+  where au.id = target_user_id;
+
+  return query
+  select
+    u.id,
+    u.name,
+    u.email,
+    u.username,
+    u.role,
+    u.status,
+    au.last_sign_in_at,
+    au.email_confirmed_at
+  from public.users u
+  left join auth.users au on au.id = u.id
+  where u.id = target_user_id;
+end;
+$$;
+
+revoke all on function public.admin_update_user(uuid, character varying, character varying, text, boolean) from public;
+grant execute on function public.admin_update_user(uuid, character varying, character varying, text, boolean) to authenticated;

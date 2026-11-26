@@ -113,6 +113,17 @@ function normalizarRol(
   return "Usuario";
 }
 
+function mapearRolDB(
+  rawRole?: unknown,
+): "admin" | "tecnico" | "usuario" | null {
+  if (typeof rawRole !== "string") return null;
+  const clean = rawRole.toLowerCase().trim();
+  if (clean === "administrador" || clean === "admin") return "admin";
+  if (clean === "técnico" || clean === "tecnico") return "tecnico";
+  if (clean === "usuario") return "usuario";
+  return null;
+}
+
 function obtenerIniciales(nombre: string): string {
   const partes = nombre.trim().split(/\s+/);
   if (partes.length === 0 || !partes[0]) return "US";
@@ -154,7 +165,7 @@ interface UserRpcRow {
   username: string | null;
   role: string | null;
   status: boolean | null;
-  created_at: string | null;
+  created_at?: string | null;
   last_sign_in_at: string | null;
   email_confirmed_at: string | null;
 }
@@ -173,7 +184,6 @@ export async function GET() {
     : null;
 
   try {
-    // Llamada directa a la función RPC creada en Supabase
     const { data: dbUsers, error: rpcError } = await supabase.rpc(
       "get_users_with_auth",
     );
@@ -281,12 +291,13 @@ export async function POST(request: Request) {
   const username = getText(payload.username).replace(/^@/, "");
   const email = getText(payload.email).toLowerCase();
   const phone = getText(payload.phone);
+  const roleDb = mapearRolDB(payload.role);
   const password = typeof payload.password === "string" ? payload.password : "";
   const phoneDigits = phone.replace(/\D/g, "");
 
-  if (!name || !username || !email || !phone || !password) {
+  if (!name || !username || !email || !phone || !password || !roleDb) {
     return NextResponse.json(
-      { error: "Todos los campos son obligatorios." },
+      { error: "Todos los campos son obligatorios y el rol debe ser válido." },
       { status: 400 },
     );
   }
@@ -312,7 +323,11 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!/^\+?[\d\s\-()]{10,18}$/.test(phone) || phoneDigits.length < 10 || phoneDigits.length > 15) {
+  if (
+    !/^\+?[\d\s\-()]{10,18}$/.test(phone) ||
+    phoneDigits.length < 10 ||
+    phoneDigits.length > 15
+  ) {
     return NextResponse.json(
       { error: "El teléfono debe contener entre 10 y 15 dígitos." },
       { status: 400 },
@@ -335,66 +350,60 @@ export async function POST(request: Request) {
     );
   }
 
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) {
-    console.error("Falta SUPABASE_SERVICE_ROLE_KEY para crear usuarios.");
-    return NextResponse.json(
-      { error: "La creación de usuarios no está disponible en este momento." },
-      { status: 500 },
-    );
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
   try {
-    const { data: existingUsername, error: usernameError } = await adminClient
-      .from("users")
-      .select("id")
-      .ilike("username", username)
-      .maybeSingle();
-
-    if (usernameError) {
-      console.error("Error verificando nombre de usuario:", usernameError);
-      return NextResponse.json(
-        { error: "No se pudo verificar el nombre de usuario." },
-        { status: 500 },
+    // Verificar si el username ya existe usando la RPC existente
+    const { data: allUsers } = await supabase.rpc("get_users_with_auth");
+    if (Array.isArray(allUsers)) {
+      const usernameEnUso = (allUsers as UserRpcRow[]).some(
+        (u) => u.username?.toLowerCase() === username.toLowerCase(),
       );
+      if (usernameEnUso) {
+        return NextResponse.json(
+          { error: "Este nombre de usuario ya está en uso.", campo: "username" },
+          { status: 409 },
+        );
+      }
+
+      const correoEnUso = (allUsers as UserRpcRow[]).some(
+        (u) => u.email.toLowerCase() === email,
+      );
+      if (correoEnUso) {
+        return NextResponse.json(
+          { error: "Este correo electrónico ya está registrado.", campo: "email" },
+          { status: 409 },
+        );
+      }
     }
 
-    if (existingUsername) {
-      return NextResponse.json(
-        { error: "Este nombre de usuario ya está en uso.", campo: "username" },
-        { status: 409 },
-      );
-    }
+    // Cliente efímero con ANON_KEY para no alterar la sesión del administrador
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const signUpClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
 
-    const phoneE164 = phone.startsWith("+")
-      ? `+${phoneDigits}`
-      : phoneDigits.length === 10
-        ? `+52${phoneDigits}`
-        : `+${phoneDigits}`;
-    const { data, error: createError } =
-      await adminClient.auth.admin.createUser({
-        email,
-        password,
-        phone: phoneE164,
-        email_confirm: true,
-        user_metadata: {
+    const { data, error: signUpError } = await signUpClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
           name,
           username,
           phone,
           telefono: phone,
-          role: "usuario",
+          role: roleDb,
         },
-      });
+      },
+    });
 
-    if (createError) {
+    if (signUpError) {
       if (
-        createError.code === "email_exists" ||
-        createError.code === "user_already_exists"
+        signUpError.code === "user_already_exists" ||
+        signUpError.message?.toLowerCase().includes("already registered")
       ) {
         return NextResponse.json(
           { error: "Este correo electrónico ya está registrado.", campo: "email" },
@@ -402,48 +411,39 @@ export async function POST(request: Request) {
         );
       }
 
-      console.error("Error creando usuario en Supabase Auth:", createError);
+      if (signUpError.message?.toLowerCase().includes("database error")) {
+        return NextResponse.json(
+          { error: "Este nombre de usuario ya está en uso.", campo: "username" },
+          { status: 409 },
+        );
+      }
+
+      console.error("Error registrando usuario en Supabase Auth:", signUpError);
       return NextResponse.json(
-        { error: "No se pudo crear el usuario." },
-        { status: 500 },
+        { error: signUpError.message || "No se pudo crear el usuario." },
+        { status: 400 },
       );
     }
 
     if (!data.user) {
-      console.error("Supabase Auth no devolvió el usuario recién creado.");
       return NextResponse.json(
         { error: "No se pudo confirmar la creación del usuario." },
         { status: 500 },
       );
     }
 
-    const { error: profileInsertError } = await adminClient
-      .from("users")
-      .upsert(
-        {
-          id: data.user.id,
-          name,
-          email,
-          username,
-          role: "usuario",
-          status: true,
-        },
-        { onConflict: "id" },
-      );
-
-    if (profileInsertError) {
-      console.error("Error creando el perfil del nuevo usuario:", profileInsertError);
-      const { error: deleteError } = await adminClient.auth.admin.deleteUser(
-        data.user.id,
-      );
-      if (deleteError) {
-        console.error("Error revirtiendo la creación de Auth:", deleteError);
-      }
+    // Si Supabase tiene activada la confirmación de correo, identities viene vacío si el correo ya existía
+    if (
+      Array.isArray(data.user.identities) &&
+      data.user.identities.length === 0
+    ) {
       return NextResponse.json(
-        { error: "No se pudo guardar el perfil del usuario." },
-        { status: 500 },
+        { error: "Este correo electrónico ya está registrado.", campo: "email" },
+        { status: 409 },
       );
     }
+
+    const confirmado = Boolean(data.user.email_confirmed_at);
 
     return NextResponse.json(
       {
@@ -453,9 +453,9 @@ export async function POST(request: Request) {
           nombre: name,
           username: `@${username}`,
           correo: email,
-          rol: "Usuario",
+          rol: normalizarRol(roleDb),
           statusBoolean: true,
-          estado: "Activo",
+          estado: confirmado ? "Activo" : "Invitado",
           acceso: "Sin acceso",
         },
       },
@@ -465,6 +465,154 @@ export async function POST(request: Request) {
     console.error("Error procesando POST /api/users:", err);
     return NextResponse.json(
       { error: "Error interno al crear el usuario." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  const ctx = await getAuthenticatedContext();
+  if ("error" in ctx) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  }
+
+  const { supabase, user } = ctx;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "La solicitud no contiene datos válidos." },
+      { status: 400 },
+    );
+  }
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json(
+      { error: "La solicitud no contiene datos válidos." },
+      { status: 400 },
+    );
+  }
+
+  const payload = body as Record<string, unknown>;
+  const getText = (value: unknown) =>
+    typeof value === "string" ? value.trim() : "";
+
+  const targetUserId = getText(payload.id);
+  const name = getText(payload.name);
+  const username = getText(payload.username).replace(/^@/, "");
+  const roleDb = mapearRolDB(payload.role);
+  const status = typeof payload.status === "boolean" ? payload.status : null;
+
+  if (!targetUserId || !name || !username || !roleDb || status === null) {
+    return NextResponse.json(
+      { error: "Todos los campos son obligatorios para actualizar el usuario." },
+      { status: 400 },
+    );
+  }
+
+  if (!/^[a-zA-ZÁÉÍÓÚáéíóúÑñÜü\s]{2,50}$/.test(name)) {
+    return NextResponse.json(
+      { error: "Ingresa un nombre válido (de 2 a 50 caracteres).", campo: "name" },
+      { status: 400 },
+    );
+  }
+
+  if (!/^[a-zA-Z0-9._]{3,20}$/.test(username)) {
+    return NextResponse.json(
+      {
+        error: "El nombre de usuario debe tener de 3 a 20 caracteres válidos.",
+        campo: "username",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (targetUserId === user.id && (!status || roleDb !== "admin")) {
+    return NextResponse.json(
+      {
+        error:
+          "No puedes desactivar tu propia cuenta ni quitarte el rol de Administrador.",
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const { data: updatedRows, error: rpcError } = await supabase.rpc(
+      "admin_update_user",
+      {
+        target_user_id: targetUserId,
+        new_name: name,
+        new_username: username,
+        new_role: roleDb,
+        new_status: status,
+      },
+    );
+
+    if (rpcError) {
+      console.error("Error ejecutando RPC admin_update_user:", rpcError);
+      const esUsernameDuplicado =
+        rpcError.code === "23505" ||
+        rpcError.message?.toLowerCase().includes("nombre de usuario ya está en uso");
+
+      if (esUsernameDuplicado) {
+        return NextResponse.json(
+          { error: "Este nombre de usuario ya está en uso.", campo: "username" },
+          { status: 409 },
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error:
+            rpcError.message || "No se pudieron guardar los cambios del usuario.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const row = Array.isArray(updatedRows)
+      ? (updatedRows[0] as UserRpcRow | undefined)
+      : (updatedRows as UserRpcRow | null);
+
+    if (!row) {
+      return NextResponse.json(
+        { error: "No se obtuvieron los datos actualizados del usuario." },
+        { status: 404 },
+      );
+    }
+
+    const estaActivo = row.status !== false;
+    const esInvitado =
+      estaActivo && !row.email_confirmed_at && !row.last_sign_in_at;
+
+    const estado: "Activo" | "Invitado" | "Inactivo" = !estaActivo
+      ? "Inactivo"
+      : esInvitado
+        ? "Invitado"
+        : "Activo";
+
+    return NextResponse.json({
+      usuario: {
+        id: row.id,
+        iniciales: obtenerIniciales(row.name),
+        nombre: row.name,
+        username: row.username ? `@${row.username}` : "",
+        correo: row.email,
+        rol: normalizarRol(row.role),
+        statusBoolean: estaActivo,
+        estado,
+        acceso: row.last_sign_in_at
+          ? formatearFecha(row.last_sign_in_at)
+          : "Sin acceso",
+      },
+    });
+  } catch (err) {
+    console.error("Error procesando PATCH /api/users:", err);
+    return NextResponse.json(
+      { error: "Error interno al actualizar el usuario." },
       { status: 500 },
     );
   }

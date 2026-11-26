@@ -504,20 +504,6 @@ function ContenidoDetalleTicket() {
       {/* Barra superior */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-1 flex-wrap items-center gap-3">
-          <div className="flex w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-            <Search className="h-3.5 w-3.5" />
-            <input
-              type="text"
-              placeholder="Buscar tickets, usuarios, incidentes o IPs..."
-              className="w-full bg-transparent outline-none placeholder:text-slate-400"
-            />
-            <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-              ⌘K
-            </kbd>
-          </div>
-          <span className="rounded-lg border border-slate-200 bg-indigo-50/60 px-3 py-2 text-xs font-medium text-slate-700">
-            Cola General
-          </span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -532,9 +518,6 @@ function ContenidoDetalleTicket() {
             <Bell className="h-4 w-4" />
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
           </button>
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#313652] text-[10px] font-bold text-white">
-            AD
-          </span>
         </div>
       </div>
 
@@ -554,14 +537,6 @@ function ContenidoDetalleTicket() {
       {/* Encabezado del Ticket */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <button
-            type="button"
-            aria-label="Volver a la cola de solicitudes"
-            onClick={() => router.push("/web/tickets")}
-            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
 
           <div>
             <div className="flex flex-wrap items-center gap-2">

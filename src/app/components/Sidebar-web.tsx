@@ -26,7 +26,7 @@ const adminNavItems = [
   { name: "Tickets", href: "/web/tickets", icon: Ticket },
   { name: "Base de Conocimiento", href: "/web/knowledge", icon: BookOpen },
   { name: "Reportes", href: "/web/reportes", icon: PieChart },
-  { name: "Usuarios", href: "/web/Usuarios", icon: User},
+  { name: "Usuarios", href: "/web/usuarios", icon: User},
 ];
 
 export default function Sidebar() {

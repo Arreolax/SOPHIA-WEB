@@ -8,7 +8,6 @@ import {
   AlertCircle,
   ArrowUpRight,
   Bold,
-  BookOpen,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -21,7 +20,6 @@ import {
   Home,
   Italic,
   Laptop,
-  Lightbulb,
   Link2,
   List,
   ListOrdered,
@@ -35,9 +33,10 @@ import {
   Save,
   Send,
   Shield,
-  Timer,
   Trash2,
   UploadCloud,
+  UserCheck,
+  Users,
   Tag,
   XCircle,
 } from "lucide-react";
@@ -53,6 +52,14 @@ type CategoriaDB = {
   name: string;
   description: string | null;
   active: boolean;
+};
+
+type UsuarioDB = {
+  id: string;
+  name?: string;
+  username?: string;
+  email?: string;
+  role?: string;
 };
 
 const TIPOS_TICKET = [
@@ -79,11 +86,6 @@ const URGENCIA = [
   { id: "MEDIUM", titulo: "Media", desc: "Atención recomendada dentro de la jornada", dot: "bg-[#313652]", rojo: false },
   { id: "HIGH", titulo: "Alta", desc: "Atención inmediata, urgente en 4 horas", dot: "bg-amber-500", rojo: false },
   { id: "CRITICAL", titulo: "Crítica", desc: "Respuesta inmediata < 30 min (línea roja)", dot: "bg-red-500", rojo: true },
-];
-
-const ARTICULOS = [
-  { titulo: "Solución a fallos de conexión en Cisco AnyConnect VPN", meta: "3 min de lectura", extra: "94% de éxito" },
-  { titulo: "Cómo restablecer certificados y credenciales de acceso remoto", meta: "5 min de lectura", extra: "Paso a paso" },
 ];
 
 type Adjunto = {
@@ -271,7 +273,7 @@ function ModalEnvio({
             <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{estado.mensaje}</p>
             <div className="mt-4 flex items-center gap-2 text-[11px] font-medium text-emerald-700">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>Redirigiendo a tus solicitudes...</span>
+              <span>Redirigiendo a la gestión de tickets...</span>
             </div>
           </div>
         )}
@@ -300,10 +302,9 @@ function ModalEnvio({
 }
 
 /* ---------- Skeleton Loader ---------- */
-function CrearSolicitudSkeleton() {
+function CrearTicketAdminSkeleton() {
   return (
     <div className="mx-auto w-full max-w-6xl animate-pulse" aria-busy="true" aria-label="Cargando formulario">
-      {/* Breadcrumb */}
       <div className="mb-5 flex items-center gap-2">
         <div className="h-4 w-14 rounded bg-slate-200" />
         <div className="h-3 w-3 rounded bg-slate-200" />
@@ -311,130 +312,23 @@ function CrearSolicitudSkeleton() {
         <div className="h-3 w-3 rounded bg-slate-200" />
         <div className="h-5 w-28 rounded-md bg-slate-200" />
       </div>
-
-      {/* Encabezado */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2.5">
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-20 rounded bg-slate-200" />
-            <div className="h-4 w-32 rounded bg-slate-200" />
-          </div>
-          <div className="h-8 w-80 max-w-full rounded-lg bg-slate-200" />
-          <div className="h-4 w-96 max-w-full rounded bg-slate-200" />
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-44 rounded-xl bg-slate-200" />
-          <div className="h-10 w-48 rounded-xl bg-slate-200" />
-        </div>
+      <div className="mb-6 space-y-2.5">
+        <div className="h-4 w-32 rounded bg-slate-200" />
+        <div className="h-8 w-80 max-w-full rounded-lg bg-slate-200" />
+        <div className="h-4 w-96 max-w-full rounded bg-slate-200" />
       </div>
-
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
-        {/* Columna Formulario */}
         <div className="flex flex-col gap-6">
           <Card>
-            <div className="mb-5 flex items-start justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 rounded-lg bg-slate-200" />
-                <div className="space-y-2">
-                  <div className="h-4 w-52 rounded bg-slate-200" />
-                  <div className="h-3 w-40 rounded bg-slate-200" />
-                </div>
-              </div>
-              <div className="h-6 w-24 rounded-md bg-slate-200" />
-            </div>
-
-            <div className="space-y-5">
-              <div>
-                <div className="mb-2 flex justify-between">
-                  <div className="h-3.5 w-36 rounded bg-slate-200" />
-                  <div className="h-3 w-24 rounded bg-slate-200" />
-                </div>
-                <div className="h-10 w-full rounded-lg bg-slate-200" />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <div className="mb-2 h-3.5 w-36 rounded bg-slate-200" />
-                  <div className="h-10 w-full rounded-lg bg-slate-200" />
-                </div>
-                <div>
-                  <div className="mb-2 h-3.5 w-32 rounded bg-slate-200" />
-                  <div className="h-10 w-full rounded-lg bg-slate-200" />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 h-3.5 w-48 rounded bg-slate-200" />
-                <div className="h-10 w-full rounded-lg bg-slate-200" />
-              </div>
-
-              <div>
-                <div className="mb-2 h-3.5 w-44 rounded bg-slate-200" />
-                <div className="flex flex-wrap gap-2">
-                  <div className="h-9 w-44 rounded-lg bg-slate-200" />
-                  <div className="h-9 w-44 rounded-lg bg-slate-200" />
-                  <div className="h-9 w-40 rounded-lg bg-slate-200" />
-                </div>
-              </div>
-            </div>
+            <div className="h-64 w-full rounded-lg bg-slate-100" />
           </Card>
-
           <Card>
-            <div className="mb-5 flex items-start justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 rounded-lg bg-slate-200" />
-                <div className="space-y-2">
-                  <div className="h-4 w-56 rounded bg-slate-200" />
-                  <div className="h-3 w-48 rounded bg-slate-200" />
-                </div>
-              </div>
-              <div className="h-6 w-24 rounded-md bg-slate-200" />
-            </div>
-
-            <div className="space-y-5">
-              <div>
-                <div className="mb-2 h-3.5 w-36 rounded bg-slate-200" />
-                <div className="h-40 w-full rounded-lg bg-slate-200" />
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <div className="mb-2 h-3.5 w-32 rounded bg-slate-200" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="h-20 rounded-xl bg-slate-200" />
-                    <div className="h-20 rounded-xl bg-slate-200" />
-                    <div className="h-20 rounded-xl bg-slate-200" />
-                    <div className="h-20 rounded-xl bg-slate-200" />
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-2 h-3.5 w-32 rounded bg-slate-200" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="h-20 rounded-xl bg-slate-200" />
-                    <div className="h-20 rounded-xl bg-slate-200" />
-                    <div className="h-20 rounded-xl bg-slate-200" />
-                    <div className="h-20 rounded-xl bg-slate-200" />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <div className="h-64 w-full rounded-lg bg-slate-100" />
           </Card>
         </div>
-
-        {/* Columna Lateral Skeleton */}
         <aside className="flex flex-col gap-6">
           <Card className="!p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="h-3 w-32 rounded bg-slate-200" />
-              <div className="h-3 w-12 rounded bg-slate-200" />
-            </div>
-            <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-              <div className="h-9 w-9 shrink-0 rounded-full bg-slate-200" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3.5 w-28 rounded bg-slate-200" />
-                <div className="h-2.5 w-20 rounded bg-slate-200" />
-              </div>
-            </div>
+            <div className="h-32 w-full rounded-xl bg-slate-100" />
           </Card>
         </aside>
       </div>
@@ -443,7 +337,7 @@ function CrearSolicitudSkeleton() {
 }
 
 /* ---------- Contenido principal ---------- */
-function CrearSolicitudContent() {
+function CrearTicketAdminContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -451,14 +345,20 @@ function CrearSolicitudContent() {
   const esModoEdicion = Boolean(draftId);
 
   const [categoriasDB, setCategoriasDB] = useState<CategoriaDB[]>([]);
+  const [usuariosDB, setUsuariosDB] = useState<UsuarioDB[]>([]);
   const [cargandoPagina, setCargandoPagina] = useState(true);
 
-  const [solicitante, setSolicitante] = useState({
+  const [adminActual, setAdminActual] = useState({
+    id: "",
     nombre: "",
-    area: "Portal de Usuario",
+    area: "Administrador",
     correo: "",
     avatar: "/images/avatar.jpg",
   });
+
+  // Campos exclusivos de Admin (opcionales)
+  const [solicitanteId, setSolicitanteId] = useState("");
+  const [tecnicoId, setTecnicoId] = useState("");
 
   const [titulo, setTitulo] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
@@ -499,6 +399,8 @@ function CrearSolicitudContent() {
     setDescripcion("");
     setImpacto("LOW");
     setUrgencia("LOW");
+    setSolicitanteId("");
+    setTecnicoId("");
     setAdjuntos([]);
     setArrastrando(false);
     setErrores({});
@@ -508,12 +410,6 @@ function CrearSolicitudContent() {
 
     if (inputFileRef.current) {
       inputFileRef.current.value = "";
-    }
-
-    try {
-      localStorage.removeItem("ticket-borrador");
-    } catch {
-      // Ignorar errores de acceso a storage
     }
   }, []);
 
@@ -530,35 +426,35 @@ function CrearSolicitudContent() {
     setModalEnvio(MODAL_INICIAL);
   };
 
-  /* Reiniciar al cambiar de ruta si no estamos editando borrador */
   useEffect(() => {
     if (!draftId) {
       reiniciarTodo();
     }
   }, [pathname, draftId, reiniciarTodo]);
 
-  /* Cargar categorías, perfil y (si aplica) los datos del borrador por ID */
+  /* Cargar categorías, perfil de admin, lista de usuarios y borrador (si aplica) */
   useEffect(() => {
     let activo = true;
     setCargandoPagina(true);
 
     const cargarDatosIniciales = async () => {
       try {
-        const peticiones: Promise<Response>[] = [
-          fetch("/api/categories", { cache: "no-store" }),
-          fetch("/api/me", { cache: "no-store" }),
-        ];
-
-        if (draftId) {
-          peticiones.push(
-            fetch(`/api/tickets/${encodeURIComponent(draftId)}`, {
+        const resCatPromise = fetch("/api/categories", { cache: "no-store" });
+        const resMePromise = fetch("/api/me", { cache: "no-store" });
+        const resUsersPromise = fetch("/api/users", { cache: "no-store" }).catch(() => null);
+        const resDraftPromise = draftId
+          ? fetch(`/api/tickets/${encodeURIComponent(draftId)}`, {
               cache: "no-store",
               credentials: "include",
             })
-          );
-        }
+          : Promise.resolve(null);
 
-        const [resCat, resMe, resDraft] = await Promise.all(peticiones);
+        const [resCat, resMe, resUsers, resDraft] = await Promise.all([
+          resCatPromise,
+          resMePromise,
+          resUsersPromise,
+          resDraftPromise,
+        ]);
 
         if (!activo) return;
 
@@ -571,14 +467,20 @@ function CrearSolicitudContent() {
 
         if (resMe.ok) {
           const dataMe = await resMe.json();
-          setSolicitante({
-            nombre: dataMe.name || dataMe.username || "Usuario",
+          setAdminActual({
+            id: dataMe.id || "",
+            nombre: dataMe.name || dataMe.username || "Administrador",
             area:
               [dataMe.department, dataMe.area].filter(Boolean).join(" • ") ||
-              "Usuario registrado",
+              "Administrador TI",
             correo: dataMe.email || "",
             avatar: "/images/avatar.jpg",
           });
+        }
+
+        if (resUsers && resUsers.ok) {
+          const dataUsers = await resUsers.json();
+          setUsuariosDB(Array.isArray(dataUsers) ? dataUsers : dataUsers.users || []);
         }
 
         if (draftId && resDraft) {
@@ -604,7 +506,7 @@ function CrearSolicitudContent() {
               setModalEnvio({
                 abierto: true,
                 tipo: "error",
-                titulo: "Solicitud ya enviada",
+                titulo: "Ticket ya registrado",
                 mensaje:
                   "Este ticket ya fue enviado anteriormente y no puede editarse como borrador.",
               });
@@ -617,6 +519,8 @@ function CrearSolicitudContent() {
               setDescripcion(t.description || "");
               setImpacto((t.impact || "LOW").toUpperCase());
               setUrgencia((t.urgency || "LOW").toUpperCase());
+              if (t.created_by) setSolicitanteId(t.created_by);
+              if (t.assigned_to) setTecnicoId(t.assigned_to);
             }
           }
         }
@@ -742,11 +646,11 @@ function CrearSolicitudContent() {
           ? "Actualizando borrador..."
           : "Guardando borrador..."
         : esModoEdicion
-          ? "Enviando solicitud..."
-          : "Creando solicitud...",
+          ? "Registrando ticket..."
+          : "Creando ticket interno...",
       mensaje: esBorrador
-        ? "Por favor espera mientras guardamos los cambios en tu borrador."
-        : "Por favor espera mientras registramos tu ticket en la mesa de ayuda.",
+        ? "Por favor espera mientras guardamos los cambios en el borrador."
+        : "Por favor espera mientras registramos el ticket en la mesa de ayuda.",
     });
 
     try {
@@ -760,22 +664,27 @@ function CrearSolicitudContent() {
         : "/api/tickets";
       const method = esModoEdicion ? "PATCH" : "POST";
 
+      const payload: Record<string, unknown> = {
+        title: titulo.trim(),
+        description: descripcion,
+        modality: ubicacionLabel,
+        type: tipo,
+        subcategory: subcategoria.trim() || null,
+        impact: impacto,
+        urgency: urgencia,
+        priority,
+        category_id: categoriaId || null,
+        draft: esBorrador ? 1 : 0,
+      };
+
+      if (solicitanteId) payload.created_by = solicitanteId;
+      if (tecnicoId) payload.assigned_to = tecnicoId;
+
       const response = await fetch(endpoint, {
         method,
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: titulo.trim(),
-          description: descripcion,
-          modality: ubicacionLabel,
-          type: tipo,
-          subcategory: subcategoria.trim() || null,
-          impact: impacto,
-          urgency: urgencia,
-          priority,
-          category_id: categoriaId || null,
-          draft: esBorrador ? 1 : 0,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
@@ -798,15 +707,15 @@ function CrearSolicitudContent() {
           ? esModoEdicion
             ? "¡Borrador actualizado!"
             : "¡Borrador guardado!"
-          : "¡Solicitud enviada con éxito!",
+          : "¡Ticket creado con éxito!",
         mensaje: esBorrador
-          ? "Los cambios en tu borrador se han guardado correctamente."
-          : "Tu ticket ha sido registrado correctamente y asignado al equipo de soporte.",
+          ? "Los cambios en el borrador se han guardado correctamente."
+          : "El ticket interno ha sido registrado correctamente.",
       });
 
       redirectTimerRef.current = setTimeout(() => {
         reiniciarTodo();
-        router.push("/portal/dashboard");
+        router.push("/web/tickets");
         router.refresh();
       }, 1500);
     } catch (err: unknown) {
@@ -814,7 +723,7 @@ function CrearSolicitudContent() {
       setModalEnvio({
         abierto: true,
         tipo: "error",
-        titulo: esBorrador ? "Error al guardar borrador" : "Error al enviar la solicitud",
+        titulo: esBorrador ? "Error al guardar borrador" : "Error al crear el ticket",
         mensaje:
           message ||
           "Ocurrió un problema inesperado al procesar la solicitud. Inténtalo de nuevo.",
@@ -828,10 +737,14 @@ function CrearSolicitudContent() {
   const guardarBorrador = () => procesarTicket(true);
 
   if (cargandoPagina) {
-    return <CrearSolicitudSkeleton />;
+    return <CrearTicketAdminSkeleton />;
   }
 
   const categoriaSeleccionada = categoriasDB.find((c) => c.id === categoriaId);
+  const tecnicosDisponibles = usuariosDB.filter((u) => {
+    const r = String(u.role || "").toLowerCase();
+    return r.includes("tecnic") || r.includes("admin");
+  });
 
   const inputBase =
     "w-full rounded-lg border bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#313652] focus:bg-white";
@@ -854,7 +767,7 @@ function CrearSolicitudContent() {
       {/* Breadcrumb */}
       <nav className="mb-5 flex items-center gap-2 text-xs text-slate-500">
         <Link
-          href="/portal/dashboard"
+          href="/web/dashboard"
           onClick={reiniciarTodo}
           className="flex items-center gap-1.5 transition-colors hover:text-slate-800"
         >
@@ -864,11 +777,11 @@ function CrearSolicitudContent() {
 
         <ChevronRight className="h-3 w-3" />
         <Link
-          href="/portal/dashboard"
+          href="/web/tickets"
           onClick={reiniciarTodo}
           className="transition-colors hover:text-slate-800"
         >
-          Solicitudes
+          Tickets
         </Link>
 
         <ChevronRight className="h-3 w-3" />
@@ -885,19 +798,17 @@ function CrearSolicitudContent() {
               <FileEdit className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-xs font-bold text-amber-900">
-                Editando borrador guardado
-              </p>
+              <p className="text-xs font-bold text-amber-900">Editando borrador guardado</p>
               <p className="text-xs text-amber-800/90">
-                Puedes actualizar tus cambios como borrador o registrar la solicitud para enviarla a Soporte TI.
+                Puedes actualizar los cambios como borrador o registrar el ticket oficialmente.
               </p>
             </div>
           </div>
           <Link
-            href="/portal/dashboard"
+            href="/web/tickets"
             className="rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100/60"
           >
-            Volver a Mis Solicitudes
+            Volver a Tickets
           </Link>
         </div>
       )}
@@ -908,29 +819,17 @@ function CrearSolicitudContent() {
           <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide">
             <span className="rounded bg-indigo-100 px-2 py-0.5 text-indigo-700">IT Helpdesk</span>
             <span className="text-slate-500">
-              {esModoEdicion ? "Edición de borrador" : "Portal de autoservicio"}
+              {esModoEdicion ? "Edición de borrador" : "Panel de Administración"}
             </span>
           </div>
           <h1 className="text-2xl font-bold text-slate-800">
             {esModoEdicion
-              ? "Editar Borrador de Solicitud"
-              : "Crear Solicitud de Soporte (Ticket)"}
+              ? "Editar Borrador de Ticket"
+              : "Crear Ticket Interno"}
           </h1>
           <p className="mt-1 max-w-lg text-sm text-slate-500">
-            {esModoEdicion
-              ? "Completa o ajusta los datos de tu borrador antes de enviarlo al equipo de soporte técnico."
-              : "Reporta un incidente técnico o solicita nuevo equipamiento, accesos o servicios informáticos de forma guiada."}
+            Registra un incidente técnico o requerimiento en nombre de un colaborador o del área de TI.
           </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/portal/knowledge"
-            onClick={reiniciarTodo}
-            className="flex items-center gap-2 rounded-xl bg-indigo-100 px-3 py-2.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-200"
-          >
-            <BookOpen className="h-4 w-4" />
-            ¿Duda recurrente? Consultar KB
-          </Link>
         </div>
       </div>
 
@@ -961,7 +860,7 @@ function CrearSolicitudContent() {
                   maxLength={MAX_TITULO}
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Ej. No puedo acceder a la VPN corporativa desde casa"
+                  placeholder="Ej. Falla en servidor de correo o solicitud de equipo"
                   className={`${inputBase} ${errores.titulo ? "border-red-400" : "border-slate-200"}`}
                 />
                 <ErrorText msg={errores.titulo} />
@@ -1084,7 +983,7 @@ function CrearSolicitudContent() {
             <StepHeader
               icon={<FileText className="h-4 w-4" />}
               titulo="Paso 2: Detalle del Problema e Impacto"
-              subtitulo="Explica qué ocurre y cómo repercute en tu operatividad"
+              subtitulo="Explica qué ocurre y cómo repercute en la operatividad"
               paso="Sección 2 de 3"
             />
 
@@ -1127,7 +1026,7 @@ function CrearSolicitudContent() {
                     autoComplete="off"
                     value={descripcion}
                     onChange={(e) => setDescripcion(e.target.value)}
-                    placeholder="Describe los pasos que seguiste, el mensaje de error exacto y desde cuándo ocurre..."
+                    placeholder="Describe los pasos, el mensaje de error exacto y desde cuándo ocurre..."
                     className="w-full resize-y bg-white px-3 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                   />
                 </div>
@@ -1136,7 +1035,7 @@ function CrearSolicitudContent() {
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
-                  <Label>Impacto percibido</Label>
+                  <Label>Impacto</Label>
                   <div className="grid grid-cols-2 gap-2">
                     {IMPACTO.map((i) => (
                       <OpcionNivel
@@ -1149,7 +1048,7 @@ function CrearSolicitudContent() {
                   </div>
                 </div>
                 <div>
-                  <Label>Urgencia percibida</Label>
+                  <Label>Urgencia</Label>
                   <div className="grid grid-cols-2 gap-2">
                     {URGENCIA.map((u) => (
                       <OpcionNivel
@@ -1273,26 +1172,86 @@ function CrearSolicitudContent() {
 
         {/* ============ Columna lateral ============ */}
         <aside className="flex flex-col gap-6">
+          {/* Asignación de solicitante y técnico (se muestra si /api/users devuelve datos) */}
+          {usuariosDB.length > 0 && (
+            <Card className="!p-5">
+              <h3 className="mb-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Asignación del Ticket
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="admin-solicitante" required={false}>
+                    Crear a nombre de (Solicitante)
+                  </Label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                      <Users className="h-4 w-4" />
+                    </span>
+                    <select
+                      id="admin-solicitante"
+                      value={solicitanteId}
+                      onChange={(e) => setSolicitanteId(e.target.value)}
+                      className={`${inputBase} appearance-none pl-9 pr-8 text-xs border-slate-200`}
+                    >
+                      <option value="">Yo mismo ({adminActual.nombre})</option>
+                      {usuariosDB.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name || u.username || u.email}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="admin-tecnico" required={false}>
+                    Asignar técnico (Opcional)
+                  </Label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                      <UserCheck className="h-4 w-4" />
+                    </span>
+                    <select
+                      id="admin-tecnico"
+                      value={tecnicoId}
+                      onChange={(e) => setTecnicoId(e.target.value)}
+                      className={`${inputBase} appearance-none pl-9 pr-8 text-xs border-slate-200`}
+                    >
+                      <option value="">Sin asignar (Cola general)</option>
+                      {tecnicosDisponibles.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name || t.username || t.email}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
           <Card className="!p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                Solicitante identificado
+                Registrado por
               </h3>
               <Link
-                href="/portal/profile"
+                href="/web/usuarios"
                 onClick={reiniciarTodo}
                 className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800"
               >
-                Perfil <ArrowUpRight className="h-3 w-3" />
+                Usuarios <ArrowUpRight className="h-3 w-3" />
               </Link>
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
               <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-slate-300">
-                <Image src={solicitante.avatar} alt={solicitante.nombre} fill sizes="36px" className="object-cover" />
+                <Image src={adminActual.avatar} alt={adminActual.nombre} fill sizes="36px" className="object-cover" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-800">{solicitante.nombre}</p>
-                <p className="truncate text-[10px] text-slate-500">{solicitante.area}</p>
+                <p className="text-xs font-bold text-slate-800">{adminActual.nombre}</p>
+                <p className="truncate text-[10px] text-slate-500">{adminActual.area}</p>
               </div>
             </div>
             <dl className="mt-2 space-y-2 text-[11px]">
@@ -1301,12 +1260,11 @@ function CrearSolicitudContent() {
                   <Mail className="h-3.5 w-3.5" /> Correo
                 </dt>
                 <dd className="truncate font-semibold text-slate-800">
-                  {solicitante.correo || "—"}
+                  {adminActual.correo || "—"}
                 </dd>
               </div>
             </dl>
           </Card>
-
 
           <Card className="!p-5">
             <h3 className="mb-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">
@@ -1338,12 +1296,12 @@ function CrearSolicitudContent() {
       <div className="sticky bottom-0 -mx-8 -mb-8 mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-8 py-4">
         <p className="flex items-center gap-2 text-[11px] text-slate-500">
           <Mail className="h-4 w-4 text-indigo-500" />
-          Se enviará un acuse de recibo con el identificador del ticket a tu correo corporativo.
+          Se enviará un acuse de recibo con el identificador del ticket al correo correspondiente.
         </p>
         <div className="flex items-center gap-3">
           {esModoEdicion ? (
             <Link
-              href="/portal/dashboard"
+              href="/web/tickets"
               className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
             >
               Cancelar
@@ -1384,7 +1342,7 @@ function CrearSolicitudContent() {
               ? "Enviando..."
               : esModoEdicion
                 ? "Enviar Solicitud"
-                : "Registrar Solicitud"}
+                : "Registrar Ticket"}
           </button>
         </div>
       </div>
@@ -1392,10 +1350,10 @@ function CrearSolicitudContent() {
   );
 }
 
-export default function CrearSolicitudPage() {
+export default function CrearTicketAdminPage() {
   return (
-    <Suspense fallback={<CrearSolicitudSkeleton />}>
-      <CrearSolicitudContent />
+    <Suspense fallback={<CrearTicketAdminSkeleton />}>
+      <CrearTicketAdminContent />
     </Suspense>
   );
 }
