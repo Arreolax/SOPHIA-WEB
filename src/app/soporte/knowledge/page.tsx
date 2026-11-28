@@ -34,24 +34,24 @@ import {
   Circle,
   BookOpen,
   Plus,
+  Ticket as TicketIcon,
 } from "lucide-react";
 
-/* ---------- Datos del ticket activo ---------- */
-const TICKET = {
-  id: "INC-8921",
-  prioridad: "P1 • CRÍTICA",
-  categoria: "Red & Conectividad",
-  creado: "Hoy 09:14",
-  titulo: "Fallo de Conexión VPN Cisco AnyConnect - Error 403-AUTH-TIMEOUT",
-  solicitante: "Elena Morales",
-  contexto: "Dirección de Finanzas • MacBook Pro Sonoma 14.4",
-  slaSegundos: 1 * 3600 + 43 * 60 + 11,
-  slaTotal: 4 * 3600,
+/* ---------- Tipos de datos reales ---------- */
+type RealTicket = {
+  id: string;
+  title: string;
+  description: string;
+  modality?: string;
+  type?: string;
+  subcategory?: string | null;
+  priority: string;
+  status: string;
+  created_at?: string;
+  category?: { id: string; name: string } | null;
+  creator?: { id: string; name?: string; username?: string; email?: string } | null;
+  assignee?: { id: string; name?: string; username?: string; email?: string } | null;
 };
-
-const ESTADOS = ["Abierto", "En Diagnóstico", "En Remediación", "Esperando Usuario", "Resuelto"];
-
-type LineaLog = { hora: string; nivel: string; texto: string; tipo: "normal" | "error" | "fatal" };
 
 type KnowledgeArticle = {
   id: string;
@@ -65,34 +65,111 @@ type KnowledgeArticle = {
   created_at?: string;
 };
 
-const LOG_INICIAL: LineaLog[] = [
-  { hora: "09:12:03.102", nivel: "INFO", texto: "Contacting headend gateway https://vpn-gw01.empresa.net/CORP-REMOTE", tipo: "normal" },
-  { hora: "09:12:04.450", nivel: "INFO", texto: "TLS 1.3 negotiated with cipher TLS_AES_256_GCM_SHA384", tipo: "normal" },
-  { hora: "09:12:04.810", nivel: "DEBUG", texto: "Requesting Client Certificate for EAP-TLS verification...", tipo: "normal" },
-  { hora: "09:12:05.110", nivel: "SEC", texto: "Local Keychain queried: 'com.cisco.anyconnect' identity found (Serial: 4F:3A:00:21)", tipo: "normal" },
-  { hora: "09:12:05.340", nivel: "ERROR", texto: "CERTIFICATE_VERIFY_FAILED: Certificate validity window expired on 2024-05-15 00:00:00 UTC", tipo: "error" },
-  { hora: "09:12:05.342", nivel: "ERROR", texto: "SCEP profile machine token mismatch (Hash: 9a3d8e... != remote headend thumbprint)", tipo: "error" },
-  { hora: "09:12:07.001", nivel: "WARN", texto: "Retrying via fallback profile 'EMPLOYEE_SCEP_FALLBACK'...", tipo: "normal" },
-  { hora: "09:12:09.552", nivel: "FATAL", texto: "[403-AUTH-TIMEOUT] Gateway refused authentication handshake. Terminating session.", tipo: "fatal" },
-];
+type LineaLog = { hora: string; nivel: string; texto: string; tipo: "normal" | "error" | "fatal" };
+
+/* ---------- Ticket de respaldo (Demo) ---------- */
+const TICKET_DEMO: RealTicket = {
+  id: "INC-8921",
+  title: "Fallo de Conexión VPN Cisco AnyConnect - Error 403-AUTH-TIMEOUT",
+  description:
+    "El cliente AnyConnect presenta un serial revocado tras la actualización macOS 14.4, impidiendo el apretón de manos TLS con el concentrador Cisco ASA central.",
+  modality: "Remoto",
+  type: "INCIDENTE",
+  subcategory: "VPN / Certificados",
+  priority: "CRITICAL",
+  status: "IN_PROGRESS",
+  created_at: new Date().toISOString(),
+  category: { id: "demo-cat", name: "Red & Conectividad" },
+  creator: {
+    id: "demo-user",
+    name: "Elena Morales",
+    username: "emorales",
+    email: "elena.morales@empresa.net",
+  },
+  assignee: {
+    id: "demo-tech",
+    name: "Carlos Mendoza",
+    username: "cmendoza",
+    email: "carlos.mendoza@empresa.net",
+  },
+};
+
+const ESTADOS_UI = ["Abierto", "En Diagnóstico", "En Remediación", "Esperando Usuario", "Resuelto"];
+
+const mapStatusToUI = (status?: string) => {
+  const s = String(status || "").toUpperCase();
+  if (s === "OPEN") return "Abierto";
+  if (s === "IN_PROGRESS") return "En Diagnóstico";
+  if (s === "PENDING" || s === "WAITING") return "Esperando Usuario";
+  if (s === "RESOLVED" || s === "CLOSED") return "Resuelto";
+  return "En Diagnóstico";
+};
+
+const mapPriorityBadge = (priority?: string) => {
+  const p = String(priority || "").toUpperCase();
+  if (p === "CRITICAL") return "P1 • CRÍTICA";
+  if (p === "HIGH") return "P2 • ALTA";
+  if (p === "MEDIUM") return "P3 • MEDIA";
+  return "P4 • BAJA";
+};
+
+const formatTicketCode = (id: string) => {
+  if (id.startsWith("INC-")) return id;
+  return `TCK-${id.slice(0, 6).toUpperCase()}`;
+};
+
+const formatFecha = (iso?: string) => {
+  if (!iso) return "Reciente";
+  try {
+    return new Date(iso).toLocaleString("es-MX", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "Reciente";
+  }
+};
+
+const buildLogsForTicket = (ticket: RealTicket): LineaLog[] => {
+  if (ticket.id === "INC-8921") {
+    return [
+      { hora: "09:12:03.102", nivel: "INFO", texto: "Contacting headend gateway https://vpn-gw01.empresa.net/CORP-REMOTE", tipo: "normal" },
+      { hora: "09:12:04.450", nivel: "INFO", texto: "TLS 1.3 negotiated with cipher TLS_AES_256_GCM_SHA384", tipo: "normal" },
+      { hora: "09:12:04.810", nivel: "DEBUG", texto: "Requesting Client Certificate for EAP-TLS verification...", tipo: "normal" },
+      { hora: "09:12:05.110", nivel: "SEC", texto: "Local Keychain queried: 'com.cisco.anyconnect' identity found (Serial: 4F:3A:00:21)", tipo: "normal" },
+      { hora: "09:12:05.340", nivel: "ERROR", texto: "CERTIFICATE_VERIFY_FAILED: Certificate validity window expired on 2024-05-15 00:00:00 UTC", tipo: "error" },
+      { hora: "09:12:05.342", nivel: "ERROR", texto: "SCEP profile machine token mismatch (Hash: 9a3d8e... != remote headend thumbprint)", tipo: "error" },
+      { hora: "09:12:07.001", nivel: "WARN", texto: "Retrying via fallback profile 'EMPLOYEE_SCEP_FALLBACK'...", tipo: "normal" },
+      { hora: "09:12:09.552", nivel: "FATAL", texto: "[403-AUTH-TIMEOUT] Gateway refused authentication handshake. Terminating session.", tipo: "fatal" },
+    ];
+  }
+
+  const code = formatTicketCode(ticket.id);
+  const solicitante = ticket.creator?.name || ticket.creator?.username || "Usuario";
+  const cat = ticket.category?.name || "General";
+
+  return [
+    { hora: "09:00:01.100", nivel: "INFO", texto: `Cargando contexto de incidente ${code} desde Supabase...`, tipo: "normal" },
+    { hora: "09:00:01.340", nivel: "INFO", texto: `Categoría: ${cat} | Tipo: ${ticket.type || "INCIDENTE"} | Prioridad: ${ticket.priority}`, tipo: "normal" },
+    { hora: "09:00:02.015", nivel: "DEBUG", texto: `Solicitante: ${solicitante} (${ticket.creator?.email || "sin correo"})`, tipo: "normal" },
+    { hora: "09:00:02.890", nivel: "WARN", texto: `Descripción reportada: ${ticket.description || "Sin descripción detallada"}`, tipo: "error" },
+    { hora: "09:00:03.410", nivel: "INFO", texto: "Analizando coincidencias en tabla KnowledgeArticle...", tipo: "normal" },
+  ];
+};
 
 const SCRIPT_SUGERIDO = `# 1. Purgar credenciales obsoletas en Keychain vía Jamf Agent
-sudo security delete-certificate -c "Elena Morales - VPN SCEP" /Library/Keychains/System.keychain
+sudo security delete-certificate -c "VPN SCEP" /Library/Keychains/System.keychain
 # 2. Forzar renovación de perfil de máquina SCEP
 sudo jamf manage && sudo jamf policy -event renew-vpn-cert
 # 3. Reiniciar el servicio de AnyConnect
 sudo launchctl kickstart -k system/com.cisco.anyconnect.vpnagentd`;
 
 const PASOS = [
-  { titulo: "Purgar credenciales obsoletas en Keychain", detalle: "Remover llave 'com.cisco.anyconnect' expirada vía script de agente Jamf silencioso." },
-  { titulo: "Forzar Gateway de Respaldo para re-token", detalle: "Redirigir hacia vpn-backup.empresa.net para aprovisionamiento inicial." },
-  { titulo: "Revalidación Duo Push & Retorno a Nodo Primario", detalle: "Solicitar al usuario confirmar notificación push en smartphone corporativo registrado." },
-];
-
-const CAMBIOS = [
-  "09:14 • Ticket creado por Elena Morales (P1)",
-  "09:20 • Asignado a Carlos Mendoza (L2 Redes)",
-  "09:31 • Estado: En Diagnóstico",
+  { titulo: "Validar contexto y categoría del incidente", detalle: "Confirmar alcance con el solicitante y revisar historial de cambios previos." },
+  { titulo: "Aplicar procedimiento de Base de Conocimientos", detalle: "Ejecutar script o pasos documentados en KnowledgeArticle para la falla." },
+  { titulo: "Confirmar operatividad con el usuario final", detalle: "Verificar restauración del servicio antes de marcar el ticket como resuelto." },
 ];
 
 const formatoHMS = (s: number) => {
@@ -105,15 +182,22 @@ const formatoHMS = (s: number) => {
 type Pestana = "script" | "nota" | "respuesta";
 
 export default function TicketTecnicoPage() {
+  // Lista de tickets reales desde Supabase (/api/tickets)
+  const [ticketsReales, setTicketsReales] = useState<RealTicket[]>([]);
+  const [cargandoTickets, setCargandoTickets] = useState(true);
+  const [ticketActivo, setTicketActivo] = useState<RealTicket>(TICKET_DEMO);
+
   const [estado, setEstado] = useState("En Diagnóstico");
   const [copilotActivo, setCopilotActivo] = useState(true);
-  const [segundos, setSegundos] = useState(TICKET.slaSegundos);
+  const [segundos, setSegundos] = useState(1 * 3600 + 43 * 60 + 11);
+  const slaTotal = 4 * 3600;
+
   const [pestana, setPestana] = useState<Pestana>("script");
   const [script, setScript] = useState(SCRIPT_SUGERIDO);
   const [nota, setNota] = useState("");
   const [respuesta, setRespuesta] = useState("");
   const [pasos, setPasos] = useState<boolean[]>([true, false, false]);
-  const [log, setLog] = useState<LineaLog[]>(LOG_INICIAL);
+  const [log, setLog] = useState<LineaLog[]>(buildLogsForTicket(TICKET_DEMO));
   const [voto, setVoto] = useState<"up" | "down" | null>(null);
   const [analizando, setAnalizando] = useState(false);
   const [historial, setHistorial] = useState(false);
@@ -130,10 +214,10 @@ export default function TicketTecnicoPage() {
 
   // Formulario para nuevo artículo en la Base de Conocimientos
   const [nuevoKb, setNuevoKb] = useState({
-    ticket_ref: TICKET.id,
-    title: "Fallo AnyConnect en macOS Sonoma (403-AUTH-TIMEOUT)",
-    category: TICKET.categoria,
-    symptom_pattern: "CERTIFICATE_VERIFY_FAILED / SCEP profile machine token mismatch",
+    ticket_ref: formatTicketCode(TICKET_DEMO.id),
+    title: TICKET_DEMO.title,
+    category: TICKET_DEMO.category?.name || "General",
+    symptom_pattern: TICKET_DEMO.description,
     solution_script: SCRIPT_SUGERIDO,
     resolution_time: "15 min",
   });
@@ -143,6 +227,33 @@ export default function TicketTecnicoPage() {
   const mostrarToast = (msg: string) => {
     setToast({ show: true, msg });
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 3200);
+  };
+
+  // Cargar tickets reales desde Supabase (/api/tickets)
+  const cargarTicketsReales = async () => {
+    try {
+      setCargandoTickets(true);
+      const res = await fetch("/api/tickets");
+      if (res.ok) {
+        const data = await res.json();
+        const lista: RealTicket[] = data.tickets || [];
+        setTicketsReales(lista);
+        if (lista.length > 0) {
+          seleccionarTicket(lista[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Error cargando tickets reales:", error);
+    } finally {
+      setCargandoTickets(false);
+    }
+  };
+
+  const seleccionarTicket = (t: RealTicket) => {
+    setTicketActivo(t);
+    setEstado(mapStatusToUI(t.status));
+    setLog(buildLogsForTicket(t));
+    setSegundos(t.priority === "CRITICAL" ? 1 * 3600 + 43 * 60 + 11 : 3 * 3600 + 15 * 60);
   };
 
   // Cargar artículos reales desde Supabase (/api/knowledge)
@@ -165,6 +276,7 @@ export default function TicketTecnicoPage() {
   };
 
   useEffect(() => {
+    cargarTicketsReales();
     cargarArticulos();
   }, []);
 
@@ -187,8 +299,28 @@ export default function TicketTecnicoPage() {
     terminalRef.current?.scrollTo({ top: terminalRef.current.scrollHeight });
   }, [log]);
 
-  const pctSla = Math.max(0, Math.min(100, (segundos / TICKET.slaTotal) * 100));
+  const pctSla = Math.max(0, Math.min(100, (segundos / slaTotal) * 100));
   const slaUrgente = segundos < 3600 * 2;
+
+  const codigoTicket = formatTicketCode(ticketActivo.id);
+  const nombreSolicitante =
+    ticketActivo.creator?.name || ticketActivo.creator?.username || "Solicitante Registrado";
+  const correoSolicitante = ticketActivo.creator?.email || "sin-correo@sophia.local";
+  const inicialesSolicitante = nombreSolicitante
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const nombreCategoria = ticketActivo.category?.name || "General";
+  const nombreAsignado =
+    ticketActivo.assignee?.name || ticketActivo.assignee?.username || "Sin asignar";
+
+  const cambiosHistorial = [
+    `${formatFecha(ticketActivo.created_at)} • Ticket ${codigoTicket} creado por ${nombreSolicitante}`,
+    `Asignado a: ${nombreAsignado}`,
+    `Estado actual: ${estado}`,
+  ];
 
   const copiar = async (texto: string, aviso: string) => {
     try {
@@ -201,9 +333,9 @@ export default function TicketTecnicoPage() {
 
   const reanalizar = async () => {
     setAnalizando(true);
-    await cargarArticulos(busqueda);
+    await Promise.all([cargarTicketsReales(), cargarArticulos(busqueda)]);
     setAnalizando(false);
-    mostrarToast("IA sincronizada con la Base de Conocimientos");
+    mostrarToast("Tickets y Base de Conocimientos sincronizados con Supabase");
   };
 
   const insertarSecuencia = () => {
@@ -214,10 +346,10 @@ export default function TicketTecnicoPage() {
 
   const abrirModalNuevoKb = () => {
     setNuevoKb({
-      ticket_ref: TICKET.id,
-      title: "Fallo AnyConnect en macOS Sonoma (403-AUTH-TIMEOUT)",
-      category: TICKET.categoria,
-      symptom_pattern: "CERTIFICATE_VERIFY_FAILED / SCEP profile machine token mismatch",
+      ticket_ref: codigoTicket,
+      title: ticketActivo.title,
+      category: nombreCategoria,
+      symptom_pattern: ticketActivo.description || "Patrón de falla reportado en ticket",
       solution_script: script || SCRIPT_SUGERIDO,
       resolution_time: "15 min",
     });
@@ -259,23 +391,29 @@ export default function TicketTecnicoPage() {
   };
 
   const resumenSinTecnicismos = () => {
+    const primerNombre = nombreSolicitante.split(" ")[0];
     setRespuesta(
-      "Hola Elena, ya identificamos la causa: el certificado de seguridad de tu equipo venció tras la última actualización de macOS. " +
-        "Vamos a renovarlo de forma remota, pero antes necesitamos confirmar tu identidad. Cuando te llegue una notificación de Duo en tu celular corporativo, por favor apruébala. " +
-        "Te avisamos en cuanto puedas volver a conectarte a la VPN.",
+      `Hola ${primerNombre}, ya estamos atendiendo tu reporte (${codigoTicket}: "${ticketActivo.title}"). ` +
+        `Identificamos la causa del inconveniente en el área de ${nombreCategoria} y ya estamos aplicando la solución correspondiente. ` +
+        `Te avisaremos por este medio en cuanto quede completamente restablecido.`,
     );
     setPestana("respuesta");
-    mostrarToast("Mensaje redactado para Elena");
+    mostrarToast(`Mensaje redactado para ${primerNombre}`);
   };
 
   const comprobarHandshake = () => {
-    mostrarToast("Comprobando handshake con vpn-gw01.empresa.net...");
+    mostrarToast(`Verificando estado técnico de ${codigoTicket}...`);
     setTimeout(() => {
       setLog((l) => [
         ...l,
-        { hora: new Date().toLocaleTimeString("es-MX", { hour12: false }) + ".000", nivel: "INFO", texto: "Handshake de prueba: certificado aún inválido (403-AUTH-TIMEOUT)", tipo: "error" },
+        {
+          hora: new Date().toLocaleTimeString("es-MX", { hour12: false }) + ".000",
+          nivel: "INFO",
+          texto: `Diagnóstico de ${codigoTicket}: esperando aplicación de procedimiento de remediación.`,
+          tipo: "normal",
+        },
       ]);
-    }, 900);
+    }, 800);
   };
 
   const ejecutarRemoto = () => {
@@ -283,18 +421,18 @@ export default function TicketTecnicoPage() {
     const hora = () => new Date().toLocaleTimeString("es-MX", { hour12: false }) + ".000";
     setLog((l) => [
       ...l,
-      { hora: hora(), nivel: "INFO", texto: "Jamf policy 'renew-vpn-cert' enviada a MBP-FIN-0428 (simulación)", tipo: "normal" },
+      { hora: hora(), nivel: "INFO", texto: `Procedimiento técnico enviado para ${codigoTicket} (simulación)`, tipo: "normal" },
     ]);
     setTimeout(
       () =>
         setLog((l) => [
           ...l,
-          { hora: hora(), nivel: "INFO", texto: "Script ejecutado correctamente. Esperando validación Duo Push del usuario.", tipo: "normal" },
+          { hora: hora(), nivel: "INFO", texto: "Ejecución completada. Listo para documentar en Base de Conocimientos.", tipo: "normal" },
         ]),
-      1200,
+      1000,
     );
     setEstado("En Remediación");
-    mostrarToast("Script enviado al host remoto (simulado)");
+    mostrarToast("Acción ejecutada en entorno técnico");
   };
 
   const guardarBorrador = () => mostrarToast("Borrador guardado en este navegador");
@@ -304,7 +442,7 @@ export default function TicketTecnicoPage() {
     pestana === "script" ? setScript(v) : pestana === "nota" ? setNota(v) : setRespuesta(v);
 
   const pestanas: { id: Pestana; label: string }[] = [
-    { id: "script", label: "Script Remoto MDM / Jamf" },
+    { id: "script", label: "Script / Procedimiento Técnico" },
     { id: "nota", label: "Nota Interna" },
     { id: "respuesta", label: "Respuesta al Usuario" },
   ];
@@ -320,6 +458,80 @@ export default function TicketTecnicoPage() {
         <CheckCircle2 className="h-5 w-5" />
         <span className="font-medium">{toast.msg}</span>
       </div>
+
+      {/* Modal: Ver detalle de un artículo de la Base de Conocimientos */}
+      {articuloSeleccionado && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 text-slate-800 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
+                  <BookOpen className="h-5 w-5" />
+                </span>
+                <div>
+                  <span className="font-mono text-[11px] font-bold text-indigo-600">{articuloSeleccionado.ticket_ref}</span>
+                  <h3 className="text-sm font-bold text-slate-800">{articuloSeleccionado.title}</h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setArticuloSeleccionado(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 text-xs">
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">
+                  {articuloSeleccionado.category}
+                </span>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                  {articuloSeleccionado.match_score}% coincidencia
+                </span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600">
+                  Tiempo promedio: {articuloSeleccionado.resolution_time}
+                </span>
+              </div>
+
+              <div>
+                <p className="font-bold text-slate-700">Patrón / Síntoma detectado:</p>
+                <p className="mt-1 rounded-lg bg-slate-50 p-2.5 text-slate-600">{articuloSeleccionado.symptom_pattern}</p>
+              </div>
+
+              <div>
+                <p className="font-bold text-slate-700">Script / Procedimiento de solución:</p>
+                <pre className="mt-1 max-h-48 overflow-auto rounded-lg bg-[#1a1f3c] p-3 font-mono text-[11px] text-slate-200">
+                  {articuloSeleccionado.solution_script}
+                </pre>
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setArticuloSeleccionado(null)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setScript(articuloSeleccionado.solution_script);
+                  setPestana("script");
+                  setArticuloSeleccionado(null);
+                  mostrarToast(`Solución de ${articuloSeleccionado.ticket_ref} cargada en consola`);
+                }}
+                className="flex items-center gap-1.5 rounded-lg bg-[#262a40] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1c2033]"
+              >
+                <Terminal className="h-3.5 w-3.5" /> Usar en consola técnica
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Guardar nuevo artículo en Base de Conocimientos (Supabase) */}
       {modalCrearKb && (
@@ -423,16 +635,16 @@ export default function TicketTecnicoPage() {
       {/* Confirmación de ejecución remota */}
       {confirmar && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 text-slate-800 shadow-2xl">
             <div className="flex items-start gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
                 <TriangleAlert className="h-5 w-5" />
               </span>
               <div>
-                <h3 className="text-sm font-bold text-slate-800">¿Ejecutar script en el host remoto?</h3>
+                <h3 className="text-sm font-bold text-slate-800">¿Ejecutar procedimiento en {codigoTicket}?</h3>
                 <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  Se aplicará la secuencia sobre <strong>MBP-FIN-0428</strong>. La regla de compliance Finanzas VIP
-                  requiere haber validado la identidad de Elena Morales por chat antes de continuar.
+                  Se aplicará la secuencia técnica sobre el incidente reportado por{" "}
+                  <strong>{nombreSolicitante}</strong>. Asegúrate de haber documentado la nota interna antes de continuar.
                 </p>
               </div>
             </div>
@@ -456,17 +668,17 @@ export default function TicketTecnicoPage() {
         </div>
       )}
 
-      {/* Barra superior con buscador real de Base de Conocimientos */}
+      {/* Barra superior con buscador de KB y selector de tickets reales de Supabase */}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-1 flex-wrap items-center gap-3">
-          <div className="flex w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs">
+          <div className="flex w-full max-w-sm items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs">
             <Search className="h-3.5 w-3.5 text-slate-500" />
             <input
               type="text"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar soluciones en Base de Conocimientos (ej. VPN, Jamf, 403)..."
-              className="w-full bg-transparent outline-none placeholder:text-slate-400"
+              placeholder="Buscar en Base de Conocimientos..."
+              className="w-full bg-transparent text-slate-800 outline-none placeholder:text-slate-400"
             />
             {busqueda && (
               <button type="button" onClick={() => setBusqueda("")} className="text-slate-400 hover:text-slate-600">
@@ -474,31 +686,60 @@ export default function TicketTecnicoPage() {
               </button>
             )}
           </div>
-          <div className="relative w-36">
+
+          {/* Selector de Tickets Reales de Supabase */}
+          <div className="relative min-w-[240px] max-w-xs flex-1">
+            <TicketIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-indigo-600" />
             <select
-              aria-label="Cola"
-              defaultValue="general"
-              className="w-full appearance-none rounded-lg border border-slate-200 bg-indigo-50/60 py-2 pl-3 pr-8 text-xs font-medium text-slate-700 outline-none"
+              aria-label="Seleccionar ticket real"
+              value={ticketActivo.id}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === TICKET_DEMO.id) {
+                  seleccionarTicket(TICKET_DEMO);
+                  mostrarToast("Cargado ticket de demostración (INC-8921)");
+                  return;
+                }
+                const encontrado = ticketsReales.find((t) => t.id === val);
+                if (encontrado) {
+                  seleccionarTicket(encontrado);
+                  mostrarToast(`Ticket real cargado: ${formatTicketCode(encontrado.id)}`);
+                }
+              }}
+              className="w-full appearance-none rounded-xl border border-indigo-200 bg-white py-2 pl-8 pr-8 text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500"
             >
-              <option value="general">Cola General</option>
-              <option value="redes">Cola Redes L2</option>
+              {cargandoTickets ? (
+                <option value={ticketActivo.id}>Cargando tickets reales...</option>
+              ) : (
+                <>
+                  {ticketsReales.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {formatTicketCode(t.id)} • {t.title.slice(0, 34)}
+                      {t.title.length > 34 ? "..." : ""}
+                    </option>
+                  ))}
+                  <option value={TICKET_DEMO.id}>INC-8921 (Demo VPN Cisco)</option>
+                </>
+              )}
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
           </div>
         </div>
+
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-[11px] font-semibold text-indigo-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> En Guardia
+          <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            {ticketsReales.length > 0 ? `${ticketsReales.length} Tickets Reales` : "Modo Demo"}
           </span>
           <button type="button" aria-label="Notificaciones" className="relative rounded-full p-2 text-slate-600 hover:bg-white">
             <Bell className="h-4 w-4" />
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
           </button>
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#313652] text-[10px] font-bold text-white">CM</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#313652] text-[10px] font-bold text-white">ST</span>
         </div>
       </div>
 
-      {/* Cabecera del ticket */}
+      {/* Cabecera del ticket seleccionado */}
       <section className="mb-5 flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-start gap-4">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-500">
@@ -507,16 +748,17 @@ export default function TicketTecnicoPage() {
           <div className="max-w-xl">
             <div className="flex flex-wrap items-center gap-2 text-[10px]">
               <span className="flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 font-bold text-red-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> {TICKET.prioridad}
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> {mapPriorityBadge(ticketActivo.priority)}
               </span>
-              <span className="font-mono text-slate-500">#{TICKET.id}</span>
+              <span className="font-mono font-semibold text-slate-600">#{codigoTicket}</span>
               <span className="text-slate-300">•</span>
-              <span className="rounded bg-indigo-50 px-2 py-1 font-semibold text-indigo-700">{TICKET.categoria}</span>
-              <span className="text-slate-500">• Creado: {TICKET.creado}</span>
+              <span className="rounded bg-indigo-50 px-2 py-1 font-semibold text-indigo-700">{nombreCategoria}</span>
+              <span className="text-slate-500">• Creado: {formatFecha(ticketActivo.created_at)}</span>
             </div>
-            <h1 className="mt-2 text-xl font-bold leading-snug text-slate-800">{TICKET.titulo}</h1>
+            <h1 className="mt-2 text-xl font-bold leading-snug text-slate-800">{ticketActivo.title}</h1>
             <p className="mt-2 text-[11px] text-slate-500">
-              Solicitante: <strong className="text-slate-800">{TICKET.solicitante}</strong> ({TICKET.contexto})
+              Solicitante: <strong className="text-slate-800">{nombreSolicitante}</strong> (
+              {ticketActivo.subcategory || ticketActivo.type || "Soporte General"} • {ticketActivo.modality || "Remoto"})
             </p>
           </div>
         </div>
@@ -554,7 +796,7 @@ export default function TicketTecnicoPage() {
               }}
               className="appearance-none rounded-xl bg-indigo-50/70 py-3 pl-8 pr-9 text-xs font-semibold text-slate-800 outline-none"
             >
-              {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
+              {ESTADOS_UI.map((e) => <option key={e} value={e}>{e}</option>)}
             </select>
             <Sparkles className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-indigo-500" />
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
@@ -577,22 +819,28 @@ export default function TicketTecnicoPage() {
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
         {/* ============ Columna principal ============ */}
         <div className="flex min-w-0 flex-col gap-5">
-          {/* Solicitante */}
+          {/* Solicitante y detalles reales del ticket */}
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-indigo-50/70 p-3">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#313652] text-xs font-bold text-white">EM</span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#313652] text-xs font-bold text-white">
+                  {inicialesSolicitante}
+                </span>
                 <div className="leading-tight">
-                  <p className="text-sm font-bold text-slate-800">Elena Morales</p>
-                  <p className="text-[11px] text-slate-500">CFO Staff / Finanzas Corporativas • elena.morales@empresa.net</p>
+                  <p className="text-sm font-bold text-slate-800">{nombreSolicitante}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {correoSolicitante} • Técnico asignado: {nombreAsignado}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-600">VIP Tier 1</span>
+                <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-700">
+                  {ticketActivo.id === TICKET_DEMO.id ? "Demo" : "Supabase Ticket"}
+                </span>
                 <button
                   type="button"
                   aria-label="Copiar correo"
-                  onClick={() => copiar("elena.morales@empresa.net", "Correo copiado")}
+                  onClick={() => copiar(correoSolicitante, "Correo copiado")}
                   className="rounded-lg bg-white p-2 text-slate-600 shadow-sm hover:bg-slate-50"
                 >
                   <Copy className="h-3.5 w-3.5" />
@@ -602,28 +850,35 @@ export default function TicketTecnicoPage() {
 
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl bg-indigo-50/60 p-3">
-                <p className="text-[10px] text-slate-500">Endpoint</p>
-                <p className="mt-1 text-xs font-bold text-slate-800">MBP-FIN-0428</p>
-                <p className="text-[10px] text-slate-500">macOS 14.4 (Sonoma)</p>
+                <p className="text-[10px] text-slate-500">Folio / ID</p>
+                <p className="mt-1 font-mono text-xs font-bold text-slate-800">{codigoTicket}</p>
+                <p className="text-[10px] text-slate-500">{ticketActivo.type || "INCIDENTE"}</p>
               </div>
               <div className="rounded-xl bg-indigo-50/60 p-3">
-                <p className="text-[10px] text-slate-500">Cliente AnyConnect</p>
-                <p className="mt-1 text-xs font-bold text-slate-800">v4.10.07061</p>
-                <p className="text-[10px] font-semibold text-red-600">Gateway rechaza handshake</p>
+                <p className="text-[10px] text-slate-500">Categoría</p>
+                <p className="mt-1 text-xs font-bold text-slate-800">{nombreCategoria}</p>
+                <p className="text-[10px] text-slate-500">{ticketActivo.subcategory || "Sin subcategoría"}</p>
               </div>
               <div className="rounded-xl bg-indigo-50/60 p-3">
-                <p className="text-[10px] text-slate-500">MDM Status</p>
+                <p className="text-[10px] text-slate-500">Modalidad</p>
                 <p className="mt-1 flex items-center gap-1 text-xs font-bold text-slate-800">
-                  Jamf Pro <Check className="h-3 w-3 text-emerald-600" />
+                  {ticketActivo.modality || "Remoto"} <Check className="h-3 w-3 text-emerald-600" />
                 </p>
-                <p className="text-[10px] font-semibold text-red-600">Sync fallida hace 2h</p>
+                <p className="text-[10px] text-slate-500">Base de datos activa</p>
               </div>
               <div className="rounded-xl bg-indigo-50/60 p-3">
-                <p className="text-[10px] text-slate-500">MFA / Identity</p>
-                <p className="mt-1 text-xs font-bold text-slate-800">Duo Security</p>
-                <p className="text-[10px] text-slate-500">Token pendiente</p>
+                <p className="text-[10px] text-slate-500">Estado en BD</p>
+                <p className="mt-1 text-xs font-bold text-slate-800">{ticketActivo.status}</p>
+                <p className="text-[10px] text-slate-500">Prioridad: {ticketActivo.priority}</p>
               </div>
             </div>
+
+            {ticketActivo.description && (
+              <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Descripción del problema reportado</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-700">{ticketActivo.description}</p>
+              </div>
+            )}
           </section>
 
           {/* Telemetría */}
@@ -631,10 +886,10 @@ export default function TicketTecnicoPage() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800">
                 <SquareTerminal className="h-4 w-4" />
-                Telemetría de Conexión &amp; Logs de Autenticación
+                Telemetría &amp; Trazabilidad del Incidente ({codigoTicket})
               </h2>
               <div className="flex items-center gap-3">
-                <span className="font-mono text-[10px] text-slate-400">vpn.empresa.net:443</span>
+                <span className="font-mono text-[10px] text-slate-400">sophia-db.ticket</span>
                 <button
                   type="button"
                   onClick={() =>
@@ -653,7 +908,7 @@ export default function TicketTecnicoPage() {
 
             <div className="rounded-xl bg-[#1a1f3c] p-4 font-mono text-[11px] leading-relaxed text-slate-300">
               <div className="mb-2 flex items-center justify-between border-b border-white/10 pb-2 text-[10px] uppercase tracking-wide text-slate-500">
-                <span>[Diagnostic Trace - AnyConnect Core Engine - Session 440091]</span>
+                <span>[Diagnostic Trace - SOPHIA Engine - {codigoTicket}]</span>
                 <span className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Live buffer
                 </span>
@@ -682,7 +937,7 @@ export default function TicketTecnicoPage() {
             <div className="relative mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800">
                 <NotebookPen className="h-4 w-4" />
-                Bitácora Técnica &amp; Acciones de Despliegue
+                Bitácora Técnica &amp; Acciones de Resolución
               </h2>
               <button
                 type="button"
@@ -690,7 +945,7 @@ export default function TicketTecnicoPage() {
                 className="flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] font-medium text-slate-600 hover:bg-indigo-100"
               >
                 <History className="h-3.5 w-3.5" />
-                Historial de Cambios ({CAMBIOS.length})
+                Historial de Cambios ({cambiosHistorial.length})
               </button>
               {historial && (
                 <div className="absolute right-0 top-full z-10 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
@@ -701,7 +956,7 @@ export default function TicketTecnicoPage() {
                     </button>
                   </div>
                   <ul className="space-y-1.5 text-[11px] text-slate-600">
-                    {CAMBIOS.map((c) => <li key={c}>{c}</li>)}
+                    {cambiosHistorial.map((c) => <li key={c}>{c}</li>)}
                   </ul>
                 </div>
               )}
@@ -727,8 +982,8 @@ export default function TicketTecnicoPage() {
             <div className="rounded-xl bg-indigo-50/60 p-3">
               {pestana === "script" && (
                 <div className="mb-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-slate-500">
-                  <span>Script automatizado de remediación (generado por IA)</span>
-                  <span className="rounded bg-white px-2 py-1 font-mono normal-case">Target: MBP-FIN-0428</span>
+                  <span>Script o pasos técnicos de remediación</span>
+                  <span className="rounded bg-white px-2 py-1 font-mono normal-case">Target: {codigoTicket}</span>
                 </div>
               )}
               <textarea
@@ -741,7 +996,7 @@ export default function TicketTecnicoPage() {
                     ? "Escribe una nota visible solo para el equipo técnico..."
                     : pestana === "respuesta"
                       ? "Escribe el mensaje que recibirá el usuario..."
-                      : "Escribe o pega el script a ejecutar..."
+                      : "Escribe o pega el script o pasos a ejecutar..."
                 }
                 className={`w-full resize-y rounded-lg bg-white p-3 text-[11px] leading-relaxed text-slate-800 outline-none ring-1 ring-slate-200 focus:ring-[#313652] ${
                   pestana === "script" ? "font-mono" : ""
@@ -763,7 +1018,7 @@ export default function TicketTecnicoPage() {
                   onClick={comprobarHandshake}
                   className="flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2.5 text-[11px] font-medium text-slate-600 hover:bg-indigo-100"
                 >
-                  <Network className="h-3.5 w-3.5" /> Comprobar Handshake
+                  <Network className="h-3.5 w-3.5" /> Comprobar Diagnóstico
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -780,7 +1035,7 @@ export default function TicketTecnicoPage() {
                   className="flex items-center gap-1.5 rounded-lg bg-[#262a40] px-4 py-2.5 text-[11px] font-semibold text-white shadow-md hover:bg-[#1c2033]"
                 >
                   <Play className="h-3.5 w-3.5" />
-                  {pestana === "script" ? "Ejecutar en Host Remoto" : pestana === "nota" ? "Guardar Nota" : "Enviar al Usuario"}
+                  {pestana === "script" ? "Ejecutar Procedimiento" : pestana === "nota" ? "Guardar Nota" : "Enviar al Usuario"}
                 </button>
               </div>
             </div>
@@ -806,7 +1061,7 @@ export default function TicketTecnicoPage() {
                   </p>
                   <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-500">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    {analizando ? "Sincronizando..." : "Conectado a Base de Conocimientos"}
+                    {analizando ? "Sincronizando..." : "Conectado a Supabase Live"}
                   </p>
                 </div>
               </div>
@@ -825,15 +1080,12 @@ export default function TicketTecnicoPage() {
 
             <div className="mt-4 rounded-xl bg-indigo-50/80 p-3">
               <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wide text-slate-500">
-                <span className="flex items-center gap-1"><Sparkles className="h-3 w-3" /> Diagnóstico predictivo</span>
-                <span className="rounded-full bg-indigo-100 px-2 py-0.5 normal-case text-indigo-700">86% Certeza</span>
+                <span className="flex items-center gap-1"><Sparkles className="h-3 w-3" /> Análisis del Ticket Activo</span>
+                <span className="rounded-full bg-indigo-100 px-2 py-0.5 normal-case text-indigo-700">{nombreCategoria}</span>
               </div>
-              <p className="mt-2 text-xs font-bold leading-snug text-slate-800">
-                Expiración de certificado de máquina SCEP/Jamf alojado en el llavero corporativo local.
-              </p>
+              <p className="mt-2 text-xs font-bold leading-snug text-slate-800">{ticketActivo.title}</p>
               <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                El cliente AnyConnect presenta un serial revocado ayer a las 23:59 UTC tras la actualización macOS
-                14.4, impidiendo el apretón de manos TLS con el concentrador Cisco ASA central.
+                {ticketActivo.description || "Sin descripción adicional registrada en este ticket."}
               </p>
             </div>
 
@@ -841,7 +1093,13 @@ export default function TicketTecnicoPage() {
             <div className="mt-4">
               <div className="mb-2 flex items-center justify-between text-[9px] font-bold uppercase tracking-wide text-slate-500">
                 <span className="flex items-center gap-1"><History className="h-3 w-3" /> Base de Conocimientos ({articulos.length})</span>
-                <span className="normal-case font-medium text-emerald-600">Supabase Live</span>
+                <button
+                  type="button"
+                  onClick={abrirModalNuevoKb}
+                  className="rounded bg-indigo-100 px-2 py-0.5 normal-case font-bold text-indigo-700 hover:bg-indigo-200"
+                >
+                  + Nuevo
+                </button>
               </div>
 
               {cargandoKb ? (
@@ -895,9 +1153,9 @@ export default function TicketTecnicoPage() {
 
             <div className="mt-4">
               <div className="mb-2 flex items-center justify-between text-[9px] font-bold uppercase tracking-wide text-slate-500">
-                <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Solución aprobada sugerida</span>
+                <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Checklist de atención</span>
                 <span className="normal-case font-medium text-slate-400">
-                  {pasos.filter(Boolean).length}/{PASOS.length} pasos de remediación
+                  {pasos.filter(Boolean).length}/{PASOS.length} pasos completados
                 </span>
               </div>
               <div className="space-y-2">
@@ -929,27 +1187,8 @@ export default function TicketTecnicoPage() {
                 onClick={insertarSecuencia}
                 className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-100/70 px-3 py-2.5 text-[11px] font-bold text-slate-800 hover:bg-indigo-100"
               >
-                <Terminal className="h-3.5 w-3.5" /> Insertar secuencia aprobada en consola técnica
+                <Terminal className="h-3.5 w-3.5" /> Insertar plantilla en consola técnica
               </button>
-            </div>
-
-            <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3">
-              <p className="flex items-center gap-1.5 text-[11px] font-bold text-red-700">
-                <TriangleAlert className="h-3.5 w-3.5" /> Advertencia de Riesgo Operativo (Crítico)
-              </p>
-              <p className="mt-1.5 text-[10px] leading-relaxed text-slate-700">
-                <strong>No eliminar</strong> el certificado raíz{" "}
-                <code className="rounded bg-white/70 px-1 font-mono text-red-600">CA-CORP-2022</code> o el usuario
-                perderá acceso integral a SSO de correo, Okta y red WiFi corporativa física. Aplicar purga únicamente
-                sobre perfiles locales AnyConnect.
-              </p>
-              <p className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-slate-800">
-                <ShieldCheck className="h-3 w-3" /> Regla de Compliance Finanzas VIP
-              </p>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-slate-600">
-                Requiere validación de identidad directa por chat con Elena Morales antes de reiniciar el demonio de
-                seguridad MDM.
-              </p>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
@@ -962,7 +1201,7 @@ export default function TicketTecnicoPage() {
                   <MessageSquareText className="h-3.5 w-3.5" /> Resumen sin tecnicismos
                 </span>
                 <span className="mt-1 block text-[10px] leading-snug text-slate-500">
-                  Redacta mensaje amigable para Elena Morales listo para enviar.
+                  Redacta mensaje amigable para {nombreSolicitante.split(" ")[0]}.
                 </span>
               </button>
               <button
@@ -974,7 +1213,7 @@ export default function TicketTecnicoPage() {
                   <FileText className="h-3.5 w-3.5" /> Generar borrador de KB
                 </span>
                 <span className="mt-1 block text-[10px] leading-snug text-indigo-700">
-                  Guarda esta solución como artículo real en Supabase.
+                  Guarda la solución de {codigoTicket} en Supabase.
                 </span>
               </button>
             </div>
@@ -989,7 +1228,7 @@ export default function TicketTecnicoPage() {
       </div>
 
       <p className="mt-4 flex items-center gap-2 text-[10px] text-slate-400">
-        <Laptop className="h-3 w-3" /> Módulo Base de Conocimientos conectado a Supabase (`/api/knowledge`).
+        <Laptop className="h-3 w-3" /> Módulo Base de Conocimientos conectado a `/api/tickets` y `/api/knowledge` en Supabase.
       </p>
     </div>
   );
